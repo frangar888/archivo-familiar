@@ -1,0 +1,137 @@
+/* Fuentes: Noto Serif (títulos) + Manrope (body) */
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Noto+Serif:ital,wght@0,400;0,700;0,900;1,400&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-surface text-on-surface font-sans antialiased;
+  }
+
+  /* Títulos con Noto Serif */
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-serif;
+  }
+}
+
+@layer components {
+  /* Botón primario - bg #33450d, text white, rounded-lg */
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2
+           px-6 py-3 rounded-button
+           bg-primary text-white
+           font-sans font-semibold text-label-lg
+           shadow-button
+           transition-all duration-300
+           hover:bg-primary-container hover:shadow-card
+           focus:outline-none focus:ring-2 focus:ring-primary/50;
+  }
+
+  /* Botón secundario - bg #fed2a2, text #795932, rounded-lg */
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2
+           px-6 py-3 rounded-button
+           bg-secondary-container text-secondary
+           font-sans font-semibold text-label-lg
+           transition-all duration-300
+           hover:brightness-95
+           focus:outline-none focus:ring-2 focus:ring-secondary/50;
+  }
+
+  /* Botón outline/ghost - bg transparent, border outline-variant */
+  .btn-outline {
+    @apply inline-flex items-center justify-center gap-2
+           px-6 py-3 rounded-button
+           bg-transparent text-on-surface
+           border border-outline-variant
+           font-sans font-semibold text-label-lg
+           transition-all duration-300
+           hover:bg-surface-container-high
+           focus:outline-none focus:ring-2 focus:ring-outline/50;
+  }
+
+  /* Cards - sin bordes, profundidad por contraste de fondos */
+  .card {
+    @apply bg-surface-container-lowest rounded-card shadow-card
+           transition-all duration-300
+           hover:shadow-card-hover;
+  }
+
+  /* Efecto sepia para fotos históricas */
+  .photo-historic {
+    @apply rounded-photo;
+    filter: sepia(40%);
+  }
+
+  /* Input - sin bordes, fondo surface-container-highest */
+  .input {
+    @apply w-full px-4 py-3
+           bg-surface-container-highest rounded-xl
+           text-on-surface placeholder:text-outline
+           border-0 outline-none
+           transition-all duration-200
+           focus:ring-2 focus:ring-primary/30;
+  }
+
+  /* Badge de fecha - tertiary-fixed (#ffdf9f), rounded-full, bold 12px */
+  .badge-date {
+    @apply inline-flex items-center
+           px-3 py-1 rounded-full
+           bg-tertiary-fixed text-on-surface
+           font-sans font-semibold text-label-sm;
+  }
+
+  /* Badge de categoría - chip style */
+  .badge-category {
+    @apply inline-flex items-center
+           px-3 py-1 rounded-full
+           bg-primary-fixed text-primary
+           font-sans font-semibold text-label-sm uppercase tracking-wider;
+  }
+
+  /* Línea del timeline - 2px, outline-variant con fade */
+  .timeline-line {
+    @apply absolute left-1/2 -translate-x-1/2 w-0.5 h-full
+           bg-gradient-to-b from-transparent via-outline-variant to-transparent;
+  }
+
+  /* Nodo del timeline - 14px */
+  .timeline-node {
+    @apply w-3.5 h-3.5 rounded-full
+           border-2 border-surface
+           shadow-sm;
+  }
+
+  /* Avatar del árbol - borde 4px */
+  .avatar-tree {
+    @apply rounded-full border-4 object-cover
+           transition-all duration-300;
+  }
+
+  /* Overlay grain para fotos (3% opacidad) */
+  .grain-overlay {
+    @apply absolute inset-0 pointer-events-none opacity-[0.03];
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%' height='100%' filter='url(%23noise)'/%3E%3C/svg%3E");
+  }
+}
+
+@layer utilities {
+  /* Transición suave para cards del timeline (rotación -1deg) */
+  .card-tilt-hover {
+    @apply transition-transform duration-500;
+  }
+  .card-tilt-hover:hover {
+    transform: rotate(-1deg);
+  }
+
+  /* Texto en Noto Serif italic para subtítulos editoriales */
+  .title-editorial {
+    @apply font-serif italic;
+  }
+}
