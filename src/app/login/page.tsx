@@ -10,13 +10,13 @@ import { cn } from '@/lib/utils'
 
 export default function LoginPage() {
   const router = useRouter()
-  const { user, isAdmin, loading: authLoading } = useAuth()
+  const { user, loading: authLoading } = useAuth()
 
   useEffect(() => {
-    if (!authLoading && user && isAdmin) {
-      router.replace('/admin')
+    if (!authLoading && user) {
+      router.replace('/')
     }
-  }, [user, isAdmin, authLoading, router])
+  }, [user, authLoading, router])
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -41,7 +41,7 @@ export default function LoginPage() {
           setError(error.message)
         }
       } else {
-        router.push('/admin')
+        router.push('/')
         router.refresh()
       }
     } catch (err) {
