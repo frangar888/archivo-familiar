@@ -17,8 +17,10 @@ import { createClient } from '@supabase/supabase-js'
 import { readFileSync } from 'fs'
 
 // ─── Credenciales ─────────────────────────────────────────────────────────────
-const SUPABASE_URL  = 'https://qyvscvutoarelxjeeysw.supabase.co'
-const SERVICE_KEY   = 'REDACTED'
+// Configurar variables de entorno antes de ejecutar:
+// SUPABASE_URL=https://xxx.supabase.co SERVICE_KEY=tu-service-role-key node import_gedcom.mjs
+const SUPABASE_URL  = process.env.SUPABASE_URL  || ''
+const SERVICE_KEY   = process.env.SERVICE_KEY   || ''
 const GED_FILE      = '../arbol_garcia_desimon.ged'
 
 const DRY_RUN = !process.argv.includes('--import')
