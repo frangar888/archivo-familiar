@@ -57,12 +57,17 @@ export default function ArbolPage() {
             <span>Mujer</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-3 h-[2px] bg-primary/60" />
-            <span>Línea paterna</span>
+            <svg width="24" height="8" viewBox="0 0 24 8">
+              <line x1="0" y1="4" x2="24" y2="4" stroke="#b87065" strokeWidth="2" strokeDasharray="6 3" />
+            </svg>
+            <span>Matrimonio</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-3 h-[2px] bg-secondary/60" />
-            <span>Línea materna</span>
+            <svg width="24" height="8" viewBox="0 0 24 8">
+              <line x1="0" y1="4" x2="18" y2="4" stroke="#4a6741" strokeWidth="2" />
+              <polygon points="18,1 24,4 18,7" fill="#4a6741" />
+            </svg>
+            <span>Descendencia</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="text-outline">†</span>

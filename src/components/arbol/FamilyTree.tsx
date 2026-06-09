@@ -8,6 +8,7 @@ import {
   MiniMap,
   Panel,
   useReactFlow,
+  MarkerType,
 } from '@xyflow/react'
 import type { Edge } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
@@ -403,11 +404,13 @@ function buildLayout(
   })
 
   // ── 6. Build React Flow edges ─────────────────────────────────────────────
-  const ST_COUPLE: React.CSSProperties  = { stroke: '#7a6a50', strokeWidth: 1.5, opacity: 0.7 }
-  const ST_CHILD: React.CSSProperties   = { stroke: '#6e6556', strokeWidth: 1.5, opacity: 0.6 }
-  const ST_FATHER: React.CSSProperties  = { stroke: '#33450d', strokeWidth: 1.5, opacity: 0.6 }
-  const ST_MOTHER: React.CSSProperties  = { stroke: '#785832', strokeWidth: 1.5, opacity: 0.6 }
-  const ST_MARRIED: React.CSSProperties = { stroke: '#9b8a6e', strokeWidth: 1.2, opacity: 0.5, strokeDasharray: '5 3' }
+  // Matrimonio: línea terracota punteada  →  ej. esposo ─ ─ ─ famNode
+  const ST_COUPLE: React.CSSProperties  = { stroke: '#b87065', strokeWidth: 1.8, strokeDasharray: '7 4', opacity: 0.85 }
+  // Descendencia: línea verde sólida con flecha  →  famNode → hijo
+  const ST_CHILD: React.CSSProperties   = { stroke: '#4a6741', strokeWidth: 2, opacity: 0.75 }
+  const ARROW_CHILD = { type: MarkerType.ArrowClosed, width: 10, height: 10, color: '#4a6741' }
+  // Matrimonio sin hijos (tabla matrimonios)
+  const ST_MARRIED: React.CSSProperties = { stroke: '#b87065', strokeWidth: 1.5, strokeDasharray: '5 3', opacity: 0.7 }
 
   const edges: Edge[] = []
 
@@ -416,7 +419,7 @@ function buildLayout(
     edges.push({ id: `e-p1-${key}`, source: data.p1, target: famId, type: 'straight', style: ST_COUPLE })
     edges.push({ id: `e-p2-${key}`, source: data.p2, target: famId, type: 'straight', style: ST_COUPLE })
     data.children.forEach((childId) => {
-      edges.push({ id: `e-ch-${key}-${childId}`, source: famId, target: childId, type: 'smoothstep', style: ST_CHILD })
+      edges.push({ id: `e-ch-${key}-${childId}`, source: famId, target: childId, type: 'smoothstep', style: ST_CHILD, markerEnd: ARROW_CHILD })
     })
   })
 
@@ -431,9 +434,9 @@ function buildLayout(
   personas.forEach((p) => {
     if (childToCouple.has(p.id)) return
     if (p.padre_id && pMap.has(p.padre_id))
-      edges.push({ id: `dp-${p.id}`, source: p.padre_id, target: p.id, type: 'smoothstep', style: ST_FATHER })
+      edges.push({ id: `dp-${p.id}`, source: p.padre_id, target: p.id, type: 'smoothstep', style: ST_CHILD, markerEnd: ARROW_CHILD })
     if (p.madre_id && pMap.has(p.madre_id))
-      edges.push({ id: `dm-${p.id}`, source: p.madre_id, target: p.id, type: 'smoothstep', style: ST_MOTHER })
+      edges.push({ id: `dm-${p.id}`, source: p.madre_id, target: p.id, type: 'smoothstep', style: ST_CHILD, markerEnd: ARROW_CHILD })
   })
 
   // ── 7. Build sibling-group background nodes ────────────────────────────────
