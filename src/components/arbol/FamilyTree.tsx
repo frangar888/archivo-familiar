@@ -17,6 +17,7 @@ import type { Persona, Matrimonio } from '@/types'
 import { PersonaNode } from './PersonaNode'
 import { FamNode } from './FamNode'
 import { FamBgNode } from './FamBgNode'
+import { GenSepNode } from './GenSepNode'
 import { PersonaModal } from './PersonaModal'
 
 // ─── Layout constants ──────────────────────────────────────────────────────────
@@ -341,7 +342,10 @@ function buildLayout(
       const curFamily  = childToCouple.get(id)
       const nextFamily = childToCouple.get(nextId)
       const isDifferentSiblingGroup = !isSpousePair && curFamily !== nextFamily
-      x += NODE_W + (isSpousePair ? H_GAP / 2 : isDifferentSiblingGroup ? H_GAP * 3 : H_GAP)
+      // Generations 4+ get larger gaps between sibling groups to accommodate
+      // the many descendant families they spawn in subsequent generations.
+      const groupGap = gen >= 4 ? H_GAP * 7 : gen >= 2 ? H_GAP * 4 : H_GAP * 3
+      x += NODE_W + (isSpousePair ? H_GAP / 2 : isDifferentSiblingGroup ? groupGap : H_GAP)
     })
   })
 
@@ -419,7 +423,7 @@ function buildLayout(
     edges.push({ id: `e-p1-${key}`, source: data.p1, target: famId, type: 'straight', style: ST_COUPLE })
     edges.push({ id: `e-p2-${key}`, source: data.p2, target: famId, type: 'straight', style: ST_COUPLE })
     data.children.forEach((childId) => {
-      edges.push({ id: `e-ch-${key}-${childId}`, source: famId, target: childId, type: 'smoothstep', style: ST_CHILD, markerEnd: ARROW_CHILD })
+      edges.push({ id: `e-ch-${key}-${childId}`, source: famId, target: childId, type: 'step', style: ST_CHILD, markerEnd: ARROW_CHILD })
     })
   })
 
@@ -434,9 +438,9 @@ function buildLayout(
   personas.forEach((p) => {
     if (childToCouple.has(p.id)) return
     if (p.padre_id && pMap.has(p.padre_id))
-      edges.push({ id: `dp-${p.id}`, source: p.padre_id, target: p.id, type: 'smoothstep', style: ST_CHILD, markerEnd: ARROW_CHILD })
+      edges.push({ id: `dp-${p.id}`, source: p.padre_id, target: p.id, type: 'step', style: ST_CHILD, markerEnd: ARROW_CHILD })
     if (p.madre_id && pMap.has(p.madre_id))
-      edges.push({ id: `dm-${p.id}`, source: p.madre_id, target: p.id, type: 'smoothstep', style: ST_CHILD, markerEnd: ARROW_CHILD })
+      edges.push({ id: `dm-${p.id}`, source: p.madre_id, target: p.id, type: 'step', style: ST_CHILD, markerEnd: ARROW_CHILD })
   })
 
   // ── 7. Build sibling-group background nodes ────────────────────────────────
@@ -474,7 +478,48 @@ function buildLayout(
     })
   })
 
-  return { nodes: [...bgNodes, ...nodes], edges }
+  // ── 8. Build generation separator nodes ───────────────────────────────────
+  // Compute full horizontal extent of the tree (after centering)
+  let treeMinX = Infinity
+  let treeMaxX = -Infinity
+  posX.forEach((x) => {
+    if (x < treeMinX) treeMinX = x
+    if (x + NODE_W > treeMaxX) treeMaxX = x + NODE_W
+  })
+
+  const SEP_PAD = 800  // extra width on each side of the tree
+  const GEN_NAMES = [
+    '', // gen 0 doesn't get a separator above it
+    'Primera generación',
+    'Segunda generación',
+    'Tercera generación',
+    'Cuarta generación',
+    'Quinta generación',
+    'Sexta generación',
+    'Séptima generación',
+    'Octava generación',
+  ]
+
+  const sepNodes: any[] = []
+  gens.forEach((gen) => {
+    if (gen === 0) return
+    // Place separator in the middle of the gap above this generation
+    const sepY = gen * (NODE_H + V_GAP) - Math.round(V_GAP * 0.55)
+    const label = GEN_NAMES[gen] ?? `Generación ${gen + 1}`
+    const sepW = treeMaxX - treeMinX + SEP_PAD * 2
+    sepNodes.push({
+      id: `sep-gen-${gen}`,
+      type: 'genSepNode',
+      position: { x: treeMinX - SEP_PAD, y: sepY },
+      data: { width: sepW, label },
+      draggable: false,
+      selectable: false,
+      zIndex: -2,
+      style: {},
+    })
+  })
+
+  return { nodes: [...sepNodes, ...bgNodes, ...nodes], edges }
 }
 
 // ─── Controls ─────────────────────────────────────────────────────────────────
@@ -584,7 +629,7 @@ function SearchPanel({
 }
 
 // ─── Node types ────────────────────────────────────────────────────────────────
-const nodeTypes = { personaNode: PersonaNode, famNode: FamNode, famBgNode: FamBgNode }
+const nodeTypes = { personaNode: PersonaNode, famNode: FamNode, famBgNode: FamBgNode, genSepNode: GenSepNode }
 
 // ─── Main component ────────────────────────────────────────────────────────────
 export function FamilyTree({
