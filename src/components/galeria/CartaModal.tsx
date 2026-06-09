@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { X, ChevronLeft, ChevronRight, Download } from 'lucide-react'
-import { cn, getDriveVideoEmbedUrl } from '@/lib/utils'
+import { cn, getInternalFileUrl } from '@/lib/utils'
 import type { Carta } from '@/types'
 
 interface CartaModalProps {
@@ -25,8 +25,7 @@ export function CartaModal({ carta, onClose }: CartaModalProps) {
   }, [onClose, total])
 
   const currentUrl = carta.paginas[page]
-  // Convierte link de Drive ("share" o "view") a URL de embed (preview)
-  const embedUrl = getDriveVideoEmbedUrl(currentUrl) ?? currentUrl
+  const embedUrl = getInternalFileUrl(currentUrl)
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col" onClick={onClose}>
@@ -123,8 +122,7 @@ export function CartaModal({ carta, onClose }: CartaModalProps) {
 
           {/* Descargar página actual */}
           <a
-            href={currentUrl}
-            download
+            href={embedUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 text-white text-body-sm hover:bg-white/20 transition-colors"

@@ -7,7 +7,7 @@ import Image from 'next/image'
 import { ArrowLeft, Plus, Pencil, Trash2, Save, X, RotateCcw, RotateCw } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { supabase } from '@/lib/supabase'
-import { cn, getGoogleDriveImageUrl } from '@/lib/utils'
+import { cn, getInternalFileUrl } from '@/lib/utils'
 import { FormField, Select, TextArea } from '@/components/ui/FormField'
 import type { Foto, FotoInsert, CategoriaFoto } from '@/types'
 
@@ -278,7 +278,7 @@ export default function AdminFotosPage() {
                 <div className="flex items-center gap-4">
                   <div className="relative w-32 h-32 rounded-xl overflow-hidden bg-surface-container flex-shrink-0">
                     <Image
-                      src={getGoogleDriveImageUrl(formData.imagen_url)}
+                      src={getInternalFileUrl(formData.imagen_url)}
                       alt="Preview"
                       fill
                       className="object-cover"
@@ -346,7 +346,7 @@ export default function AdminFotosPage() {
               <div key={foto.id} className="card overflow-hidden group relative">
                 <div className="aspect-square relative bg-surface-container">
                   <Image
-                    src={getGoogleDriveImageUrl(foto.imagen_url)}
+                    src={getInternalFileUrl(foto.imagen_url)}
                     alt={foto.titulo}
                     fill
                     className="object-cover"

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import Image from 'next/image'
 import { X, MapPin, Calendar, ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from 'lucide-react'
-import { getGoogleDriveImageUrl } from '@/lib/utils'
+import { getInternalFileUrl } from '@/lib/utils'
 import type { Foto } from '@/types'
 import { CATEGORIAS_FOTO } from '@/types'
 
@@ -198,7 +198,7 @@ export function PhotoModal({
             onClick={handleImageClick}
           >
             <Image
-              src={getGoogleDriveImageUrl(foto.imagen_url)}
+              src={getInternalFileUrl(foto.imagen_url)}
               alt={foto.titulo}
               fill
               className="object-contain"

@@ -2,7 +2,7 @@
 
 import Image from 'next/image'
 import type { ExtNode } from 'relatives-tree/lib/types'
-import { cn, getGoogleDriveImageUrl, formatYear, calcularEdad } from '@/lib/utils'
+import { cn, getInternalFileUrl, formatYear, calcularEdad } from '@/lib/utils'
 import type { Persona } from '@/types'
 import { User, Focus } from 'lucide-react'
 
@@ -46,7 +46,7 @@ export function TreeNode({
       >
         {persona.foto_perfil_url ? (
           <Image
-            src={getGoogleDriveImageUrl(persona.foto_perfil_url)}
+            src={getInternalFileUrl(persona.foto_perfil_url)}
             alt={`${persona.nombre} ${persona.apellido}`}
             fill
             className="object-cover"

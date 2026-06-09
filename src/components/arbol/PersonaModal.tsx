@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import { X, MapPin, Ship, Calendar, Heart, Users } from 'lucide-react'
-import { cn, getGoogleDriveImageUrl, formatDate, calcularEdad, getNombreCompleto } from '@/lib/utils'
+import { cn, getInternalFileUrl, formatDate, calcularEdad, getNombreCompleto } from '@/lib/utils'
 import type { Persona, Foto } from '@/types'
 import { supabase } from '@/lib/supabase'
 
@@ -69,7 +69,7 @@ export function PersonaModal({ persona, onClose }: PersonaModalProps) {
         <div className="relative h-48 bg-surface-container">
           {persona.foto_perfil_url ? (
             <Image
-              src={getGoogleDriveImageUrl(persona.foto_perfil_url)}
+              src={getInternalFileUrl(persona.foto_perfil_url)}
               alt={nombreCompleto}
               fill
               className="object-cover opacity-30"
@@ -87,7 +87,7 @@ export function PersonaModal({ persona, onClose }: PersonaModalProps) {
             >
               {persona.foto_perfil_url ? (
                 <Image
-                  src={getGoogleDriveImageUrl(persona.foto_perfil_url)}
+                  src={getInternalFileUrl(persona.foto_perfil_url)}
                   alt={nombreCompleto}
                   width={96}
                   height={96}
@@ -218,7 +218,7 @@ export function PersonaModal({ persona, onClose }: PersonaModalProps) {
                     className="relative aspect-square rounded-photo overflow-hidden bg-surface-container"
                   >
                     <Image
-                      src={getGoogleDriveImageUrl(foto.imagen_url)}
+                      src={getInternalFileUrl(foto.imagen_url)}
                       alt={foto.titulo}
                       fill
                       className="object-cover photo-historic"

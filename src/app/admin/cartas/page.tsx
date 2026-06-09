@@ -8,7 +8,7 @@ import {
   FileText, ChevronUp, ChevronDown, Link as LinkIcon,
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
-import { cn } from '@/lib/utils'
+import { cn, getDriveFileId } from '@/lib/utils'
 import { FormField, TextArea } from '@/components/ui/FormField'
 import type { Carta, CartaInsert } from '@/types'
 
@@ -37,6 +37,7 @@ export default function AdminCartasPage() {
   const [saving, setSaving]       = useState(false)
   const [error, setError]         = useState<string | null>(null)
   const [newUrl, setNewUrl]       = useState('')
+  const [batchText, setBatchText] = useState('')
 
   useEffect(() => {
     if (!authLoading && (!user || !isAdmin)) router.push('/login')
@@ -87,6 +88,15 @@ export default function AdminCartasPage() {
   }
 
   // ── Gestión de páginas (links de Drive) ───────────────────────────────────
+  const addBatch = () => {
+    const driveUrlPattern = /https:\/\/drive\.google\.com\/[^\s"'<>]+/g
+    const matches = batchText.match(driveUrlPattern) ?? []
+    const validas = matches.filter((u) => getDriveFileId(u) !== null)
+    if (validas.length === 0) return
+    setFormData((prev) => ({ ...prev, paginas: [...prev.paginas, ...validas] }))
+    setBatchText('')
+  }
+
   const addPagina = () => {
     const url = newUrl.trim()
     if (!url) return
@@ -235,8 +245,7 @@ export default function AdminCartasPage() {
                 Páginas <span className="text-error">*</span>
               </p>
               <p className="text-body-sm text-outline mb-3">
-                Pegá el link de Google Drive de cada página (una por una, en orden).
-                El archivo debe estar compartido como "Cualquier persona con el link puede ver".
+                Pegá el link de Google Drive de cada página. El archivo debe estar compartido con la cuenta de servicio.
               </p>
 
               {/* Input para agregar */}
@@ -261,6 +270,29 @@ export default function AdminCartasPage() {
                   <Plus className="w-5 h-5" />
                   Agregar
                 </button>
+              </div>
+
+              {/* Batch: pegar múltiples links */}
+              <div className="mb-4 p-3 rounded-xl bg-surface-container border border-outline/20">
+                <p className="text-body-sm text-on-surface-variant mb-2">
+                  O pegá varios links de una vez:
+                </p>
+                <div className="flex gap-2">
+                  <textarea
+                    value={batchText}
+                    onChange={(e) => setBatchText(e.target.value)}
+                    placeholder="Pegá múltiples links de Drive (separados por espacios, comas o saltos de línea)"
+                    rows={3}
+                    className="input flex-1 resize-none text-body-sm"
+                  />
+                  <button
+                    onClick={addBatch}
+                    disabled={!batchText.trim()}
+                    className="btn-outline flex-shrink-0 self-end disabled:opacity-40"
+                  >
+                    Agregar todos
+                  </button>
+                </div>
               </div>
 
               {/* Lista de páginas */}

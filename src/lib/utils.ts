@@ -91,6 +91,15 @@ export function getDriveFileId(url: string): string | null {
   return null
 }
 
+// Convierte cualquier URL de Google Drive en una URL interna del proxy
+// URLs no-Drive se devuelven sin cambios (YouTube thumbnails, etc.)
+export function getInternalFileUrl(url: string): string {
+  if (!url || url.startsWith('/api/drive/')) return url
+  if (!url.includes('drive.google.com')) return url
+  const fileId = getDriveFileId(url)
+  return fileId ? `/api/drive/${fileId}` : url
+}
+
 // URL de embed para reproducir video de Drive en iframe
 export function getDriveVideoEmbedUrl(url: string): string | null {
   const fileId = getDriveFileId(url)

@@ -1,7 +1,7 @@
 'use client'
 
 import Image from 'next/image'
-import { cn, getGoogleDriveImageUrl, formatDate, formatYear } from '@/lib/utils'
+import { cn, getInternalFileUrl, formatDate, formatYear } from '@/lib/utils'
 import type { Evento, CategoriaEvento } from '@/types'
 import { MapPin } from 'lucide-react'
 
@@ -73,7 +73,7 @@ export function TimelineCard({ evento, position, index }: TimelineCardProps) {
           <div className="relative mb-4 rounded-photo overflow-hidden bg-surface-container-low p-1">
             <div className="relative aspect-video rounded-sm overflow-hidden">
               <Image
-                src={getGoogleDriveImageUrl(evento.imagen_url)}
+                src={getInternalFileUrl(evento.imagen_url)}
                 alt={evento.titulo}
                 fill
                 className="object-cover photo-historic"

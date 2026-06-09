@@ -1,7 +1,7 @@
 'use client'
 
 import Image from 'next/image'
-import { cn, getGoogleDriveImageUrl } from '@/lib/utils'
+import { cn, getInternalFileUrl } from '@/lib/utils'
 import type { Foto } from '@/types'
 import { MapPin, Calendar } from 'lucide-react'
 
@@ -25,7 +25,7 @@ export function PhotoCard({ foto, onClick, featured = false }: PhotoCardProps) {
       {/* Imagen con efecto marco */}
       <div className="absolute inset-1 rounded-photo overflow-hidden">
         <Image
-          src={getGoogleDriveImageUrl(foto.imagen_url)}
+          src={getInternalFileUrl(foto.imagen_url)}
           alt={foto.titulo}
           fill
           className="object-cover photo-historic transition-transform duration-500 group-hover:scale-105"
