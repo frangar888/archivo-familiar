@@ -4,17 +4,29 @@ import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import { X, MapPin, Ship, Calendar, Heart, Users } from 'lucide-react'
 import { cn, getInternalFileUrl, formatDate, calcularEdad, getNombreCompleto } from '@/lib/utils'
-import type { Persona, Foto } from '@/types'
+import type { Persona, Foto, Matrimonio } from '@/types'
 import { supabase } from '@/lib/supabase'
 
 interface PersonaModalProps {
   persona: Persona
+  personas: Persona[]
+  matrimonios: Matrimonio[]
   onClose: () => void
 }
 
-export function PersonaModal({ persona, onClose }: PersonaModalProps) {
+export function PersonaModal({ persona, personas, matrimonios, onClose }: PersonaModalProps) {
   const [fotos, setFotos] = useState<Foto[]>([])
   const [loading, setLoading] = useState(true)
+
+  const padre = persona.padre_id ? (personas.find((p) => p.id === persona.padre_id) ?? null) : null
+  const madre = persona.madre_id ? (personas.find((p) => p.id === persona.madre_id) ?? null) : null
+  const conyugesData = matrimonios
+    .filter((m) => m.persona1_id === persona.id || m.persona2_id === persona.id)
+    .map((m) => {
+      const cid = m.persona1_id === persona.id ? m.persona2_id : m.persona1_id
+      return { m, conyuge: personas.find((p) => p.id === cid) ?? null }
+    })
+    .filter(({ conyuge }) => conyuge !== null)
 
   const edad = calcularEdad(persona.fecha_nacimiento, persona.fecha_fallecimiento)
   const estaVivo = !persona.fecha_fallecimiento
@@ -138,6 +150,45 @@ export function PersonaModal({ persona, onClose }: PersonaModalProps) {
               )}
             </div>
           </div>
+
+          {/* Familia: padres y cónyuge/s */}
+          {(padre || madre || conyugesData.length > 0) && (
+            <div className="mb-6 p-4 rounded-xl bg-surface-container">
+              <h3 className="font-serif text-title-md text-on-surface mb-3 flex items-center gap-2">
+                <Users className="w-5 h-5 text-primary" />
+                Familia
+              </h3>
+              <div className="space-y-1.5">
+                {padre && (
+                  <div className="flex items-center gap-2 text-body-md">
+                    <span className="w-16 text-body-sm text-outline shrink-0">Padre</span>
+                    <span className="text-on-surface font-medium">{padre.nombre} {padre.apellido}</span>
+                    {padre.fecha_nacimiento && (
+                      <span className="text-body-sm text-outline">({padre.fecha_nacimiento.split('-')[0]})</span>
+                    )}
+                  </div>
+                )}
+                {madre && (
+                  <div className="flex items-center gap-2 text-body-md">
+                    <span className="w-16 text-body-sm text-outline shrink-0">Madre</span>
+                    <span className="text-on-surface font-medium">{madre.nombre} {madre.apellido}</span>
+                    {madre.fecha_nacimiento && (
+                      <span className="text-body-sm text-outline">({madre.fecha_nacimiento.split('-')[0]})</span>
+                    )}
+                  </div>
+                )}
+                {conyugesData.map(({ m, conyuge: c }) => c && (
+                  <div key={m.id} className="flex items-center gap-2 text-body-md">
+                    <span className="w-16 text-body-sm text-outline shrink-0">Cónyuge</span>
+                    <span className="text-on-surface font-medium">{c.nombre} {c.apellido}</span>
+                    {m.fecha_matrimonio && (
+                      <span className="text-body-sm text-outline">({m.fecha_matrimonio.split('-')[0]})</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Datos de migración */}
           {(persona.fecha_emigracion || persona.puerto_salida || persona.nombre_barco) && (

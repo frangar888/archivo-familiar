@@ -15,6 +15,7 @@ import { ZoomIn, ZoomOut, Maximize2, Search, X } from 'lucide-react'
 import type { Persona, Matrimonio } from '@/types'
 import { PersonaNode } from './PersonaNode'
 import { FamNode } from './FamNode'
+import { FamBgNode } from './FamBgNode'
 import { PersonaModal } from './PersonaModal'
 
 // ─── Layout constants ──────────────────────────────────────────────────────────
@@ -435,7 +436,42 @@ function buildLayout(
       edges.push({ id: `dm-${p.id}`, source: p.madre_id, target: p.id, type: 'smoothstep', style: ST_MOTHER })
   })
 
-  return { nodes, edges }
+  // ── 7. Build sibling-group background nodes ────────────────────────────────
+  const BG_PAD_X = 16
+  const BG_PAD_Y_TOP = 28  // room for label above the first sibling row
+  const BG_PAD_Y_BOT = 12
+
+  const bgNodes: any[] = []
+  coupleMap.forEach((data, key) => {
+    if (data.children.length < 2) return
+    const xs = data.children.map((c) => posX.get(c) ?? 0)
+    const ys = data.children.map((c) => posY.get(c) ?? 0)
+    const minX = Math.min(...xs)
+    const maxX = Math.max(...xs) + NODE_W
+    const minY = Math.min(...ys)
+    const maxY = Math.max(...ys) + NODE_H
+
+    const p1 = pMap.get(data.p1)
+    const p2 = pMap.get(data.p2)
+    const label = p1 && p2 ? `Hijos de ${p1.nombre} y ${p2.nombre}` : ''
+
+    bgNodes.push({
+      id: `bg-${key}`,
+      type: 'famBgNode',
+      position: { x: minX - BG_PAD_X, y: minY - BG_PAD_Y_TOP },
+      data: {
+        width: maxX - minX + BG_PAD_X * 2,
+        height: maxY - minY + BG_PAD_Y_TOP + BG_PAD_Y_BOT,
+        label,
+      },
+      draggable: false,
+      selectable: false,
+      zIndex: -1,
+      style: {},
+    })
+  })
+
+  return { nodes: [...bgNodes, ...nodes], edges }
 }
 
 // ─── Controls ─────────────────────────────────────────────────────────────────
@@ -545,7 +581,7 @@ function SearchPanel({
 }
 
 // ─── Node types ────────────────────────────────────────────────────────────────
-const nodeTypes = { personaNode: PersonaNode, famNode: FamNode }
+const nodeTypes = { personaNode: PersonaNode, famNode: FamNode, famBgNode: FamBgNode }
 
 // ─── Main component ────────────────────────────────────────────────────────────
 export function FamilyTree({
@@ -650,7 +686,12 @@ export function FamilyTree({
       </ReactFlow>
 
       {selectedPersona && (
-        <PersonaModal persona={selectedPersona} onClose={handleClose} />
+        <PersonaModal
+          persona={selectedPersona}
+          personas={personas}
+          matrimonios={matrimonios}
+          onClose={handleClose}
+        />
       )}
     </div>
   )
