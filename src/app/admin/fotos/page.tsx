@@ -50,17 +50,25 @@ export default function AdminFotosPage() {
     }
   }, [user, isAdmin, authLoading, router])
 
+  // Cargar fotos cuando el token esté disponible (no al montar con token null)
   useEffect(() => {
-    fetchFotos()
-  }, [])
+    if (accessToken) {
+      fetchFotos()
+    }
+  }, [accessToken]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchFotos = async () => {
-    const res = await fetch('/api/fotos', {
-      headers: { Authorization: `Bearer ${accessToken ?? ''}` },
-    })
-    const data = res.ok ? await res.json() : []
-    setFotos(data)
-    setLoading(false)
+    try {
+      const res = await fetch('/api/fotos', {
+        headers: { Authorization: `Bearer ${accessToken ?? ''}` },
+      })
+      const data = res.ok ? await res.json() : []
+      setFotos(data)
+    } catch {
+      // error de red — dejar la lista vacía
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleEdit = (foto: Foto) => {

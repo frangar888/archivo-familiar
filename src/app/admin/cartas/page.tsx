@@ -43,16 +43,25 @@ export default function AdminCartasPage() {
     if (!authLoading && (!user || !isAdmin)) router.push('/login')
   }, [user, isAdmin, authLoading, router])
 
-  useEffect(() => { fetchCartas() }, [])
+  // Cargar cartas cuando el token esté disponible (no al montar con token null)
+  useEffect(() => {
+    if (accessToken) {
+      fetchCartas()
+    }
+  }, [accessToken]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchCartas = async () => {
-    const session = accessToken ?? ''
-    const res = await fetch('/api/cartas', {
-      headers: { Authorization: `Bearer ${session}` },
-    })
-    const data = res.ok ? await res.json() : []
-    setCartas(data)
-    setLoading(false)
+    try {
+      const res = await fetch('/api/cartas', {
+        headers: { Authorization: `Bearer ${accessToken ?? ''}` },
+      })
+      const data = res.ok ? await res.json() : []
+      setCartas(data)
+    } catch {
+      // error de red — dejar la lista vacía
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleNew = () => {
