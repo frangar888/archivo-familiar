@@ -81,29 +81,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [loading, user, pathname, router])
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      const currentUser = session?.user ?? null
-      setUser(currentUser)
-      setAccessToken(session?.access_token ?? null)
-      if (currentUser) {
-        setSessionCookie()
-        checkAdminRole(currentUser.id, setIsAdmin, setLoading)
-      } else {
-        clearSessionCookie()
-        setLoading(false)
-      }
-    })
-
+    // onAuthStateChange emite INITIAL_SESSION al suscribirse con el estado actual.
+    // Esto reemplaza getSession() que puede colgar por el mecanismo de auth lock.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-          const currentUser = session?.user ?? null
+        const currentUser = session?.user ?? null
+
+        if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') {
           setUser(currentUser)
           setAccessToken(session?.access_token ?? null)
-          if (currentUser && event === 'SIGNED_IN') {
+          if (currentUser) {
             setSessionCookie()
             await checkAdminRole(currentUser.id, setIsAdmin, setLoading)
+          } else {
+            clearSessionCookie()
+            setLoading(false)
           }
+        } else if (event === 'TOKEN_REFRESHED') {
+          // Solo actualizar token/user — no resetear isAdmin
+          setUser(currentUser)
+          setAccessToken(session?.access_token ?? null)
         } else if (event === 'SIGNED_OUT') {
           clearSessionCookie()
           setUser(null)

@@ -40,10 +40,9 @@ export default function LoginPage() {
         } else {
           setError(error.message)
         }
-      } else {
-        router.push('/')
-        router.refresh()
       }
+      // Si no hay error: onAuthStateChange(SIGNED_IN) setea la cookie y el user,
+      // y el useEffect de arriba redirige cuando !authLoading && user.
     } catch (err) {
       setError('Ocurrió un error inesperado')
     } finally {
