@@ -14,9 +14,9 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (!authLoading && user) {
-      router.replace('/')
+      window.location.replace('/')
     }
-  }, [user, authLoading, router])
+  }, [user, authLoading])
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
