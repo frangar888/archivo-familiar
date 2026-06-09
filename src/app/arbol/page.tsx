@@ -2,7 +2,7 @@ import { Suspense } from 'react'
 import { getPersonas, getMatrimonios } from '@/lib/data'
 import { FamilyTree } from '@/components/arbol'
 
-export const dynamic = 'force-dynamic'
+export const revalidate = 60
 
 export const metadata = {
   title: 'Árbol Genealógico | Archivo Familiar',

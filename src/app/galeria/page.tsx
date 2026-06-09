@@ -2,7 +2,7 @@ import { Suspense } from 'react'
 import { getFotos, getCartas } from '@/lib/data'
 import { Gallery } from '@/components/galeria'
 
-export const dynamic = 'force-dynamic'
+export const revalidate = 60
 
 export const metadata = {
   title: 'Galería de Fotos | Archivo Familiar',

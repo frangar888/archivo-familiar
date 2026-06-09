@@ -2,7 +2,7 @@ import { Suspense } from 'react'
 import { getVideos } from '@/lib/data'
 import { VideoGallery } from '@/components/entrevistas'
 
-export const dynamic = 'force-dynamic'
+export const revalidate = 60
 
 export const metadata = {
   title: 'Videos | Archivo Familiar',

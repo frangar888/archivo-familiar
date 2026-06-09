@@ -1,6 +1,6 @@
 import Link from 'next/link'
 
-export const dynamic = 'force-dynamic'
+export const revalidate = 60
 import { GitBranch, Clock, Image, Video, Users, Calendar, Camera, Film } from 'lucide-react'
 import { getEstadisticas, getEventosDestacados, getFotosDestacadas } from '@/lib/data'
 

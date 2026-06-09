@@ -2,7 +2,7 @@ import { Suspense } from 'react'
 import { getEventos } from '@/lib/data'
 import { Timeline } from '@/components/timeline'
 
-export const dynamic = 'force-dynamic'
+export const revalidate = 60
 
 export const metadata = {
   title: 'Línea de Tiempo | Archivo Familiar',
