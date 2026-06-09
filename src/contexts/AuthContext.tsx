@@ -39,31 +39,6 @@ function clearSessionCookie() {
   document.cookie = 'af_session=; path=/; max-age=0; SameSite=Lax'
 }
 
-async function checkAdminRole(
-  userId: string,
-  setIsAdmin: (v: boolean) => void,
-  setLoading: (v: boolean) => void
-) {
-  try {
-    const { data, error } = await supabase
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', userId)
-      .single()
-
-    if (error) {
-      console.error('Error checking admin role:', error.message)
-      setIsAdmin(false)
-    } else {
-      setIsAdmin(data?.role === 'admin')
-    }
-  } catch (err) {
-    console.error('Unexpected error checking admin role:', err)
-    setIsAdmin(false)
-  } finally {
-    setLoading(false)
-  }
-}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
@@ -92,7 +67,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setAccessToken(session?.access_token ?? null)
           if (currentUser) {
             setSessionCookie()
-            await checkAdminRole(currentUser.id, setIsAdmin, setLoading)
+            try {
+              const controller = new AbortController()
+              const timeout = setTimeout(() => controller.abort(), 5000)
+              const res = await fetch('/api/auth/check-admin', {
+                headers: { Authorization: `Bearer ${session!.access_token}` },
+                signal: controller.signal,
+              }).finally(() => clearTimeout(timeout))
+              const { isAdmin } = await res.json()
+              setIsAdmin(isAdmin)
+            } catch {
+              setIsAdmin(false)
+            } finally {
+              setLoading(false)
+            }
           } else {
             clearSessionCookie()
             setLoading(false)
