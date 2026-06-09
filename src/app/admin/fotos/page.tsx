@@ -6,7 +6,6 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { ArrowLeft, Plus, Pencil, Trash2, Save, X, RotateCcw, RotateCw } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
-import { supabase } from '@/lib/supabase'
 import { cn, getInternalFileUrl } from '@/lib/utils'
 import { FormField, Select, TextArea } from '@/components/ui/FormField'
 import type { Foto, FotoInsert, CategoriaFoto } from '@/types'
@@ -36,7 +35,7 @@ const emptyFoto: FotoInsert = {
 
 export default function AdminFotosPage() {
   const router = useRouter()
-  const { user, isAdmin, loading: authLoading } = useAuth()
+  const { user, isAdmin, loading: authLoading, accessToken } = useAuth()
 
   const [fotos, setFotos] = useState<Foto[]>([])
   const [loading, setLoading] = useState(true)
@@ -56,15 +55,11 @@ export default function AdminFotosPage() {
   }, [])
 
   const fetchFotos = async () => {
-    const { data, error } = await supabase
-      .from('fotos')
-      .select('*')
-      .order('orden')
-      .order('created_at', { ascending: false })
-
-    if (!error && data) {
-      setFotos(data)
-    }
+    const res = await fetch('/api/fotos', {
+      headers: { Authorization: `Bearer ${accessToken ?? ''}` },
+    })
+    const data = res.ok ? await res.json() : []
+    setFotos(data)
     setLoading(false)
   }
 
@@ -109,22 +104,27 @@ export default function AdminFotosPage() {
     setError(null)
 
     try {
-      if (editingId === 'new') {
-        const { error } = await supabase.from('fotos').insert(formData)
-        if (error) throw new Error(error.message)
-      } else {
-        const { error } = await supabase
-          .from('fotos')
-          .update(formData)
-          .eq('id', editingId)
-        if (error) throw new Error(error.message)
-      }
+      const isNew = editingId === 'new'
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 8000)
+      const res = await fetch('/api/fotos', {
+        method: isNew ? 'POST' : 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken ?? ''}`,
+        },
+        body: JSON.stringify(isNew ? formData : { id: editingId, ...formData }),
+        signal: controller.signal,
+      }).finally(() => clearTimeout(timeout))
 
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}))
+        throw new Error(json.error || `Error ${res.status}`)
+      }
       await fetchFotos()
       handleCancel()
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Error al guardar'
-      setError(msg)
+    } catch (err: any) {
+      setError(err.name === 'AbortError' ? 'Timeout: el servidor no respondió' : (err.message || 'Error al guardar'))
     } finally {
       setSaving(false)
     }
@@ -133,8 +133,15 @@ export default function AdminFotosPage() {
   const handleDelete = async (id: string) => {
     if (!confirm('¿Estás seguro de eliminar esta foto?')) return
 
-    const { error } = await supabase.from('fotos').delete().eq('id', id)
-    if (!error) {
+    const res = await fetch('/api/fotos', {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken ?? ''}`,
+      },
+      body: JSON.stringify({ id }),
+    })
+    if (res.ok) {
       setFotos(fotos.filter((f) => f.id !== id))
     }
   }
@@ -210,7 +217,7 @@ export default function AdminFotosPage() {
                 label="URL de imagen"
                 htmlFor="imagen_url"
                 required
-                hint="Link de Google Drive compartido públicamente"
+                hint="Link de Google Drive compartido con la cuenta de servicio"
               >
                 <input
                   id="imagen_url"
