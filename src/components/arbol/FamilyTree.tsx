@@ -106,11 +106,47 @@ function getRelatedIds(
 const H_GAP = 40   // horizontal gap between nodes
 const V_GAP = 180  // vertical gap between generations (needs room for sub-level offsets)
 
+// Children at generation index >= this value start collapsed by default (6th gen in 1-based counting)
+const COLLAPSE_FROM_GEN = 5
+
+// Compute which couple keys should start collapsed based on their children's generation.
+// Uses a simplified genOf (without equalization) — good enough for initialization.
+function computeInitialCollapsed(personas: Persona[], _matrimonios: Matrimonio[]): Set<string> {
+  const pMap = new Map(personas.map((p) => [p.id, p]))
+  const genOf = new Map<string, number>()
+
+  const computeGen = (id: string, depth = 0): number => {
+    if (depth > 60) return 0
+    if (genOf.has(id)) return genOf.get(id)!
+    const p = pMap.get(id)
+    if (!p) return 0
+    const pg = p.padre_id && pMap.has(p.padre_id) ? computeGen(p.padre_id, depth + 1) : -1
+    const mg = p.madre_id && pMap.has(p.madre_id) ? computeGen(p.madre_id, depth + 1) : -1
+    const parentGen = Math.max(pg, mg)
+    const gen = parentGen >= 0 ? parentGen + 1 : 0
+    genOf.set(id, gen)
+    return gen
+  }
+  personas.forEach((p) => computeGen(p.id))
+
+  const collapsed = new Set<string>()
+  personas.forEach((p) => {
+    if (!p.padre_id || !p.madre_id) return
+    if (!pMap.has(p.padre_id) || !pMap.has(p.madre_id)) return
+    if ((genOf.get(p.id) ?? 0) >= COLLAPSE_FROM_GEN) {
+      collapsed.add([p.padre_id, p.madre_id].sort().join('::'))
+    }
+  })
+  return collapsed
+}
+
 function buildLayout(
   personas: Persona[],
   matrimonios: Matrimonio[],
   onClick: (p: Persona) => void,
   highlighted: Set<string> | null,
+  collapsed: Set<string>,
+  onToggle: (key: string) => void,
 ) {
   const pMap = new Map(personas.map((p) => [p.id, p]))
   const validMats = matrimonios.filter(
@@ -129,6 +165,46 @@ function buildLayout(
 
   const childToCouple = new Map<string, string>()
   coupleMap.forEach((data, key) => data.children.forEach((c) => childToCouple.set(c, key)))
+
+  // ── Compute hidden persons (BFS from collapsed couples' children) ─────────
+  // A person is hidden if they are a descendant of a collapsed couple group.
+  const hiddenPersonIds = new Set<string>()
+  const bfsQueue: string[] = []
+  collapsed.forEach((key) => {
+    coupleMap.get(key)?.children.forEach((c) => bfsQueue.push(c))
+  })
+  const bfsVisited = new Set<string>()
+  while (bfsQueue.length > 0) {
+    const id = bfsQueue.shift()!
+    if (bfsVisited.has(id)) continue
+    bfsVisited.add(id)
+    hiddenPersonIds.add(id)
+    // Propagate through couples where this hidden person is a parent
+    coupleMap.forEach((cdata) => {
+      if (cdata.p1 === id || cdata.p2 === id) {
+        cdata.children.forEach((c) => { if (!bfsVisited.has(c)) bfsQueue.push(c) })
+      }
+    })
+    // Also single-parent children
+    personas.forEach((p) => {
+      if (!childToCouple.has(p.id) && (p.padre_id === id || p.madre_id === id)) {
+        if (!bfsVisited.has(p.id)) bfsQueue.push(p.id)
+      }
+    })
+  }
+
+  // FamNode IDs that are completely hidden (because at least one parent is hidden)
+  const hiddenFamNodeIds = new Set<string>()
+  coupleMap.forEach((data, key) => {
+    if (hiddenPersonIds.has(data.p1) || hiddenPersonIds.has(data.p2)) {
+      hiddenFamNodeIds.add(`fam-${key}`)
+    }
+  })
+
+  // Combined set for edge filtering
+  const hiddenNodeIds = new Set<string>()
+  hiddenPersonIds.forEach((id) => hiddenNodeIds.add(id))
+  hiddenFamNodeIds.forEach((id) => hiddenNodeIds.add(id))
 
   // Build spouse map (personaId → Set<spouseId>) from coupleMap
   const spouseOf = new Map<string, Set<string>>()
@@ -372,18 +448,23 @@ function buildLayout(
   // ── 5. Build React Flow nodes ─────────────────────────────────────────────
   const dimmed = (id: string) => highlighted !== null && !highlighted.has(id)
 
-  const nodes: any[] = personas.map((p) => ({
-    id: p.id,
-    type: 'personaNode',
-    position: { x: posX.get(p.id) ?? 0, y: posY.get(p.id) ?? 0 },
-    data: { persona: p, onClick, isInLaw: isInLaw.has(p.id) },
-    draggable: false,
-    style: { opacity: dimmed(p.id) ? 0.15 : 1, transition: 'opacity 0.2s' },
-  }))
+  // Skip hidden persons
+  const nodes: any[] = personas
+    .filter((p) => !hiddenPersonIds.has(p.id))
+    .map((p) => ({
+      id: p.id,
+      type: 'personaNode',
+      position: { x: posX.get(p.id) ?? 0, y: posY.get(p.id) ?? 0 },
+      data: { persona: p, onClick, isInLaw: isInLaw.has(p.id) },
+      draggable: false,
+      style: { opacity: dimmed(p.id) ? 0.15 : 1, transition: 'opacity 0.2s' },
+    }))
 
   // Family junction nodes (center between spouses, halfway down to children)
   coupleMap.forEach((data, key) => {
     const famId = `fam-${key}`
+    // Skip if either parent is hidden (cascade hide)
+    if (hiddenFamNodeIds.has(famId)) return
     const x1 = (posX.get(data.p1) ?? 0) + NODE_W / 2
     const x2 = (posX.get(data.p2) ?? 0) + NODE_W / 2
     // Use the lower parent's bottom edge so the famNode sits below both spouses
@@ -396,11 +477,16 @@ function buildLayout(
     const anyHighlighted = highlighted === null ||
       data.children.some((c) => highlighted.has(c)) ||
       highlighted.has(data.p1) || highlighted.has(data.p2)
+    const isCollapsed = collapsed.has(key)
     nodes.push({
       id: famId,
       type: 'famNode',
       position: { x: famX, y: famY },
-      data: {},
+      data: {
+        hasChildren: data.children.length > 0,
+        isCollapsed,
+        onToggle: () => onToggle(key),
+      },
       draggable: false,
       selectable: false,
       style: { opacity: anyHighlighted ? 1 : 0.15, transition: 'opacity 0.2s' },
@@ -420,9 +506,12 @@ function buildLayout(
 
   coupleMap.forEach((data, key) => {
     const famId = `fam-${key}`
+    // Skip if the famNode itself is hidden (parents are hidden)
+    if (hiddenNodeIds.has(famId)) return
     edges.push({ id: `e-p1-${key}`, source: data.p1, target: famId, type: 'straight', style: ST_COUPLE })
     edges.push({ id: `e-p2-${key}`, source: data.p2, target: famId, type: 'straight', style: ST_COUPLE })
     data.children.forEach((childId) => {
+      if (hiddenNodeIds.has(childId)) return  // skip hidden or collapsed children
       edges.push({ id: `e-ch-${key}-${childId}`, source: famId, target: childId, type: 'step', style: ST_CHILD, markerEnd: ARROW_CHILD })
     })
   })
@@ -431,15 +520,17 @@ function buildLayout(
   validMats.forEach((m) => {
     const key = [m.persona1_id, m.persona2_id].sort().join('::')
     if (coupleMap.has(key)) return
+    if (hiddenNodeIds.has(m.persona1_id) || hiddenNodeIds.has(m.persona2_id)) return
     edges.push({ id: `em-${m.id}`, source: m.persona1_id, target: m.persona2_id, type: 'straight', style: ST_MARRIED })
   })
 
   // Direct parent edges for single-parent children
   personas.forEach((p) => {
     if (childToCouple.has(p.id)) return
-    if (p.padre_id && pMap.has(p.padre_id))
+    if (hiddenNodeIds.has(p.id)) return  // skip hidden children
+    if (p.padre_id && pMap.has(p.padre_id) && !hiddenNodeIds.has(p.padre_id))
       edges.push({ id: `dp-${p.id}`, source: p.padre_id, target: p.id, type: 'step', style: ST_CHILD, markerEnd: ARROW_CHILD })
-    if (p.madre_id && pMap.has(p.madre_id))
+    if (p.madre_id && pMap.has(p.madre_id) && !hiddenNodeIds.has(p.madre_id))
       edges.push({ id: `dm-${p.id}`, source: p.madre_id, target: p.id, type: 'step', style: ST_CHILD, markerEnd: ARROW_CHILD })
   })
 
@@ -451,8 +542,11 @@ function buildLayout(
   const bgNodes: any[] = []
   coupleMap.forEach((data, key) => {
     if (data.children.length < 2) return
-    const xs = data.children.map((c) => posX.get(c) ?? 0)
-    const ys = data.children.map((c) => posY.get(c) ?? 0)
+    // Skip bg node if all children are hidden
+    const visibleChildren = data.children.filter((c) => !hiddenNodeIds.has(c))
+    if (visibleChildren.length < 2) return
+    const xs = visibleChildren.map((c) => posX.get(c) ?? 0)
+    const ys = visibleChildren.map((c) => posY.get(c) ?? 0)
     const minX = Math.min(...xs)
     const maxX = Math.max(...xs) + NODE_W
     const minY = Math.min(...ys)
@@ -641,6 +735,9 @@ export function FamilyTree({
 }) {
   const [selectedPersona, setSelectedPersona] = useState<Persona | null>(null)
   const [highlighted, setHighlighted] = useState<Set<string> | null>(null)
+  const [collapsed, setCollapsed] = useState<Set<string>>(
+    () => computeInitialCollapsed(personas, matrimonios)
+  )
 
   const handleSelect = useCallback(
     (p: Persona) => {
@@ -665,9 +762,18 @@ export function FamilyTree({
     if (!ids) setSelectedPersona(null)
   }, [])
 
+  const handleToggle = useCallback((key: string) => {
+    setCollapsed((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }, [])
+
   const { nodes, edges } = useMemo(
-    () => buildLayout(personas, matrimonios, handleSelect, highlighted),
-    [personas, matrimonios, handleSelect, highlighted]
+    () => buildLayout(personas, matrimonios, handleSelect, highlighted, collapsed, handleToggle),
+    [personas, matrimonios, handleSelect, highlighted, collapsed, handleToggle]
   )
 
   if (personas.length === 0) {
