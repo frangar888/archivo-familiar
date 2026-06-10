@@ -297,6 +297,29 @@ function buildLayout(
     if (!hasParentInSystem && (genOf.get(p.id) ?? 0) > 0) isInLaw.add(p.id)
   })
 
+  // ── 3c. Hide in-law spouses whose blood-relative spouse is hidden ─────────
+  // In-laws have no parents in the system: their only reason to be at a given
+  // generation is the marriage. If ALL their spouses are hidden, hide them too.
+  personas.forEach((p) => {
+    if (!isInLaw.has(p.id)) return
+    if (hiddenPersonIds.has(p.id)) return
+    const spouses = spouseOf.get(p.id)
+    if (!spouses || spouses.size === 0) return
+    let allSpousesHidden = true
+    spouses.forEach((sid) => { if (!hiddenPersonIds.has(sid)) allSpousesHidden = false })
+    if (!allSpousesHidden) return
+    // All spouses are hidden → hide this in-law too
+    hiddenPersonIds.add(p.id)
+    hiddenNodeIds.add(p.id)
+    coupleMap.forEach((cdata, ckey) => {
+      if (cdata.p1 === p.id || cdata.p2 === p.id) {
+        const famId = `fam-${ckey}`
+        hiddenFamNodeIds.add(famId)
+        hiddenNodeIds.add(famId)
+      }
+    })
+  })
+
   // ── 4. Group personas by generation and assign X positions ───────────────
   const byGen = new Map<number, string[]>()
   genOf.forEach((gen, id) => {
