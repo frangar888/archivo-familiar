@@ -146,7 +146,6 @@ function buildLayout(
   onClick: (p: Persona) => void,
   highlighted: Set<string> | null,
   collapsed: Set<string>,
-  onToggle: (key: string) => void,
 ) {
   const pMap = new Map(personas.map((p) => [p.id, p]))
   const validMats = matrimonios.filter(
@@ -478,18 +477,19 @@ function buildLayout(
       data.children.some((c) => highlighted.has(c)) ||
       highlighted.has(data.p1) || highlighted.has(data.p2)
     const isCollapsed = collapsed.has(key)
+    const hasChildren = data.children.length > 0
     nodes.push({
       id: famId,
       type: 'famNode',
       position: { x: famX, y: famY },
-      data: {
-        hasChildren: data.children.length > 0,
-        isCollapsed,
-        onToggle: () => onToggle(key),
-      },
+      data: { hasChildren, isCollapsed },
       draggable: false,
       selectable: false,
-      style: { opacity: anyHighlighted ? 1 : 0.15, transition: 'opacity 0.2s' },
+      style: {
+        opacity: anyHighlighted ? 1 : 0.15,
+        transition: 'opacity 0.2s',
+        cursor: hasChildren ? 'pointer' : 'default',
+      },
     })
   })
 
@@ -594,9 +594,19 @@ function buildLayout(
     'Octava generación',
   ]
 
+  // Generations that have at least one visible persona
+  const visibleGens = new Set<number>()
+  personas.forEach((p) => {
+    if (!hiddenPersonIds.has(p.id)) {
+      const g = genOf.get(p.id)
+      if (g !== undefined) visibleGens.add(g)
+    }
+  })
+
   const sepNodes: any[] = []
   gens.forEach((gen) => {
     if (gen === 0) return
+    if (!visibleGens.has(gen)) return  // skip separators for empty generations
     // Place separator in the middle of the gap above this generation
     const sepY = gen * (NODE_H + V_GAP) - Math.round(V_GAP * 0.55)
     const label = GEN_NAMES[gen] ?? `Generación ${gen + 1}`
@@ -772,8 +782,8 @@ export function FamilyTree({
   }, [])
 
   const { nodes, edges } = useMemo(
-    () => buildLayout(personas, matrimonios, handleSelect, highlighted, collapsed, handleToggle),
-    [personas, matrimonios, handleSelect, highlighted, collapsed, handleToggle]
+    () => buildLayout(personas, matrimonios, handleSelect, highlighted, collapsed),
+    [personas, matrimonios, handleSelect, highlighted, collapsed]
   )
 
   if (personas.length === 0) {
@@ -811,6 +821,12 @@ export function FamilyTree({
         onPaneClick={() => {
           setSelectedPersona(null)
           setHighlighted(null)
+        }}
+        onNodeClick={(_e, node) => {
+          if (node.type === 'famNode' && (node.data as { hasChildren?: boolean }).hasChildren) {
+            // key is the famNode id without the 'fam-' prefix
+            handleToggle(node.id.slice(4))
+          }
         }}
       >
         <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="#c8bc9d" />
