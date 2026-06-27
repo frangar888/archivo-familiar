@@ -1,10 +1,13 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
-import { ArrowLeft, Plus, Pencil, Trash2, Save, X, RotateCcw, RotateCw } from 'lucide-react'
+import {
+  ArrowLeft, Plus, Pencil, Trash2, Save, X, RotateCcw, RotateCw,
+  FolderOpen, Check, RefreshCw, ChevronDown, ChevronUp,
+} from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { cn, getInternalFileUrl } from '@/lib/utils'
 import { FormField, Select, TextArea } from '@/components/ui/FormField'
@@ -33,6 +36,13 @@ const emptyFoto: FotoInsert = {
   created_by: null,
 }
 
+interface DriveFile {
+  id: string
+  name: string
+  mimeType: string
+  alreadyImported: boolean
+}
+
 export default function AdminFotosPage() {
   const router = useRouter()
   const { user, isAdmin, loading: authLoading, accessToken } = useAuth()
@@ -44,23 +54,27 @@ export default function AdminFotosPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Drive import state
+  const [importOpen, setImportOpen] = useState(false)
+  const [folderInput, setFolderInput] = useState('')
+  const [driveFiles, setDriveFiles] = useState<DriveFile[]>([])
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [driveLoading, setDriveLoading] = useState(false)
+  const [driveError, setDriveError] = useState<string | null>(null)
+  const [importResult, setImportResult] = useState<{ imported: number; skipped: number } | null>(null)
+  const [importing, setImporting] = useState(false)
+
   useEffect(() => {
     if (!authLoading && (!user || !isAdmin)) {
       router.push('/login')
     }
   }, [user, isAdmin, authLoading, router])
 
-  // Cargar fotos cuando el token esté disponible (no al montar con token null)
-  useEffect(() => {
-    if (accessToken) {
-      fetchFotos()
-    }
-  }, [accessToken]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const fetchFotos = async () => {
+  const fetchFotos = useCallback(async () => {
+    if (!accessToken) return
     try {
       const res = await fetch('/api/fotos', {
-        headers: { Authorization: `Bearer ${accessToken ?? ''}` },
+        headers: { Authorization: `Bearer ${accessToken}` },
       })
       const data = res.ok ? await res.json() : []
       setFotos(data)
@@ -69,7 +83,11 @@ export default function AdminFotosPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [accessToken])
+
+  useEffect(() => {
+    if (accessToken) fetchFotos()
+  }, [accessToken, fetchFotos])
 
   const handleEdit = (foto: Foto) => {
     setEditingId(foto.id)
@@ -107,10 +125,8 @@ export default function AdminFotosPage() {
       setError('Título y URL de imagen son requeridos')
       return
     }
-
     setSaving(true)
     setError(null)
-
     try {
       const isNew = editingId === 'new'
       const controller = new AbortController()
@@ -140,7 +156,6 @@ export default function AdminFotosPage() {
 
   const handleDelete = async (id: string) => {
     if (!confirm('¿Estás seguro de eliminar esta foto?')) return
-
     const res = await fetch('/api/fotos', {
       method: 'DELETE',
       headers: {
@@ -149,13 +164,94 @@ export default function AdminFotosPage() {
       },
       body: JSON.stringify({ id }),
     })
-    if (res.ok) {
-      setFotos(fotos.filter((f) => f.id !== id))
-    }
+    if (res.ok) setFotos(fotos.filter((f) => f.id !== id))
   }
 
   const updateField = (field: keyof FotoInsert, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value === '' ? null : value }))
+  }
+
+  // ── Drive import handlers ─────────────────────────────────────────────────
+
+  const handleLoadFolder = async () => {
+    if (!folderInput.trim()) return
+    setDriveLoading(true)
+    setDriveError(null)
+    setDriveFiles([])
+    setSelectedIds(new Set())
+    setImportResult(null)
+
+    try {
+      const res = await fetch(
+        `/api/admin/drive-folder?folderId=${encodeURIComponent(folderInput.trim())}`,
+        { headers: { Authorization: `Bearer ${accessToken ?? ''}` } }
+      )
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || `Error ${res.status}`)
+
+      setDriveFiles(json.files)
+      // Pre-select files not yet imported
+      setSelectedIds(new Set(
+        (json.files as DriveFile[])
+          .filter((f) => !f.alreadyImported)
+          .map((f) => f.id)
+      ))
+    } catch (err: any) {
+      setDriveError(err.message || 'Error al conectar con Drive')
+    } finally {
+      setDriveLoading(false)
+    }
+  }
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const toggleSelectAll = () => {
+    const importable = driveFiles.filter((f) => !f.alreadyImported).map((f) => f.id)
+    if (selectedIds.size === importable.length) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(importable))
+    }
+  }
+
+  const handleImport = async () => {
+    if (selectedIds.size === 0) return
+    setImporting(true)
+    setDriveError(null)
+    setImportResult(null)
+
+    const files = driveFiles
+      .filter((f) => selectedIds.has(f.id))
+      .map((f) => ({ fileId: f.id, name: f.name }))
+
+    try {
+      const res = await fetch('/api/admin/drive-import', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken ?? ''}`,
+        },
+        body: JSON.stringify({ files }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || `Error ${res.status}`)
+
+      setImportResult(json)
+      await fetchFotos()
+      // Reload the file list to update alreadyImported flags
+      await handleLoadFolder()
+    } catch (err: any) {
+      setDriveError(err.message || 'Error al importar')
+    } finally {
+      setImporting(false)
+    }
   }
 
   if (authLoading || loading) {
@@ -166,29 +262,172 @@ export default function AdminFotosPage() {
     )
   }
 
+  const importableCount = driveFiles.filter((f) => !f.alreadyImported).length
+
   return (
     <div className="py-12 lg:py-16">
       <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
+
+        {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-4">
-            <Link
-              href="/admin"
-              className="p-2 rounded-full hover:bg-surface-container-high transition-colors"
-            >
+            <Link href="/admin" className="p-2 rounded-full hover:bg-surface-container-high transition-colors">
               <ArrowLeft className="w-5 h-5 text-on-surface-variant" />
             </Link>
-            <h1 className="font-serif text-headline-md text-on-surface">
-              Fotos
-            </h1>
+            <h1 className="font-serif text-headline-md text-on-surface">Fotos</h1>
           </div>
           {!editingId && (
-            <button onClick={handleNew} className="btn-primary">
-              <Plus className="w-5 h-5" />
-              Agregar
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => { setImportOpen((v) => !v); setImportResult(null) }}
+                className="btn-outline"
+              >
+                <FolderOpen className="w-5 h-5" />
+                Importar desde Drive
+                {importOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              </button>
+              <button onClick={handleNew} className="btn-primary">
+                <Plus className="w-5 h-5" />
+                Agregar
+              </button>
+            </div>
           )}
         </div>
 
+        {/* Panel de importación desde Drive */}
+        {importOpen && !editingId && (
+          <div className="card p-6 mb-8">
+            <h2 className="font-serif text-title-lg text-on-surface mb-4 flex items-center gap-2">
+              <FolderOpen className="w-5 h-5 text-primary" />
+              Importar desde carpeta de Drive
+            </h2>
+            <p className="text-body-sm text-on-surface-variant mb-4">
+              La carpeta debe estar compartida con la cuenta de servicio del proyecto.
+            </p>
+
+            <div className="flex gap-3 mb-6">
+              <input
+                type="text"
+                value={folderInput}
+                onChange={(e) => setFolderInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleLoadFolder()}
+                placeholder="URL o ID de la carpeta de Drive"
+                className="input flex-1"
+              />
+              <button
+                onClick={handleLoadFolder}
+                disabled={driveLoading || !folderInput.trim()}
+                className={cn('btn-primary shrink-0', driveLoading && 'opacity-70')}
+              >
+                {driveLoading
+                  ? <RefreshCw className="w-4 h-4 animate-spin" />
+                  : <RefreshCw className="w-4 h-4" />
+                }
+                {driveLoading ? 'Cargando...' : 'Cargar carpeta'}
+              </button>
+            </div>
+
+            {driveError && (
+              <div className="mb-4 p-4 rounded-xl bg-error-container text-error text-body-md">
+                {driveError}
+              </div>
+            )}
+
+            {importResult && (
+              <div className="mb-4 p-4 rounded-xl bg-surface-container text-body-md flex items-center gap-2">
+                <Check className="w-5 h-5 text-primary shrink-0" />
+                <span>
+                  <strong>{importResult.imported}</strong> fotos importadas
+                  {importResult.skipped > 0 && `, ${importResult.skipped} ya existían`}
+                </span>
+              </div>
+            )}
+
+            {driveFiles.length > 0 && (
+              <>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-body-sm text-on-surface-variant">
+                    {driveFiles.length} archivo{driveFiles.length !== 1 ? 's' : ''} encontrado{driveFiles.length !== 1 ? 's' : ''}
+                    {importableCount > 0 && ` · ${importableCount} sin importar`}
+                  </p>
+                  {importableCount > 0 && (
+                    <button
+                      onClick={toggleSelectAll}
+                      className="text-body-sm text-primary hover:underline"
+                    >
+                      {selectedIds.size === importableCount ? 'Deseleccionar todo' : 'Seleccionar todo'}
+                    </button>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 max-h-96 overflow-y-auto mb-4 pr-1">
+                  {driveFiles.map((file) => {
+                    const selected = selectedIds.has(file.id)
+                    return (
+                      <button
+                        key={file.id}
+                        onClick={() => !file.alreadyImported && toggleSelect(file.id)}
+                        disabled={file.alreadyImported}
+                        className={cn(
+                          'relative rounded-xl overflow-hidden border-2 text-left transition-all',
+                          file.alreadyImported
+                            ? 'border-outline/20 opacity-50 cursor-not-allowed'
+                            : selected
+                            ? 'border-primary'
+                            : 'border-transparent hover:border-outline/40'
+                        )}
+                      >
+                        <div className="aspect-square relative bg-surface-container">
+                          <Image
+                            src={getInternalFileUrl(`https://drive.google.com/file/d/${file.id}/view`)}
+                            alt={file.name}
+                            fill
+                            className="object-cover"
+                            sizes="120px"
+                          />
+                        </div>
+                        <div className="p-1.5">
+                          <p className="text-[11px] text-on-surface line-clamp-2 leading-tight">
+                            {file.name.replace(/\.[^.]+$/, '')}
+                          </p>
+                        </div>
+                        {selected && !file.alreadyImported && (
+                          <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-primary flex items-center justify-center">
+                            <Check className="w-3 h-3 text-on-primary" />
+                          </div>
+                        )}
+                        {file.alreadyImported && (
+                          <div className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded bg-surface-container-high text-[9px] font-medium text-outline">
+                            ya importada
+                          </div>
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
+
+                <div className="flex justify-end">
+                  <button
+                    onClick={handleImport}
+                    disabled={selectedIds.size === 0 || importing}
+                    className={cn('btn-primary', (selectedIds.size === 0 || importing) && 'opacity-70')}
+                  >
+                    {importing
+                      ? <RefreshCw className="w-5 h-5 animate-spin" />
+                      : <Check className="w-5 h-5" />
+                    }
+                    {importing
+                      ? 'Importando...'
+                      : `Importar ${selectedIds.size} foto${selectedIds.size !== 1 ? 's' : ''}`
+                    }
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Formulario de edición individual */}
         {editingId && (
           <div className="card p-6 mb-8">
             <h2 className="font-serif text-title-lg text-on-surface mb-6">
@@ -351,6 +590,7 @@ export default function AdminFotosPage() {
           </div>
         )}
 
+        {/* Grilla de fotos existentes */}
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           {fotos.length === 0 ? (
             <div className="col-span-full text-center py-12 text-on-surface-variant">
@@ -370,12 +610,8 @@ export default function AdminFotosPage() {
                   />
                 </div>
                 <div className="p-3">
-                  <p className="text-body-sm font-medium text-on-surface line-clamp-1">
-                    {foto.titulo}
-                  </p>
-                  <p className="text-body-sm text-outline">
-                    {foto.fecha_aproximada || 'Sin fecha'}
-                  </p>
+                  <p className="text-body-sm font-medium text-on-surface line-clamp-1">{foto.titulo}</p>
+                  <p className="text-body-sm text-outline">{foto.fecha_aproximada || 'Sin fecha'}</p>
                 </div>
                 <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button
@@ -395,6 +631,7 @@ export default function AdminFotosPage() {
             ))
           )}
         </div>
+
       </div>
     </div>
   )
