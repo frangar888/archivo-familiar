@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Search, User, FileText, MapPin, Calendar, Home } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Foto, CategoriaFoto, Carta } from '@/types'
@@ -13,6 +13,8 @@ interface GalleryProps {
   fotos: Foto[]
   cartas?: Carta[]
 }
+
+const PAGE_SIZE = 24
 
 const categorias: {
   value: CategoriaFoto | null
@@ -30,8 +32,12 @@ const categorias: {
 export function Gallery({ fotos, cartas = [] }: GalleryProps) {
   const [activeFilter, setActiveFilter] = useState<CategoriaFoto | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
   const [selectedFotoIndex, setSelectedFotoIndex] = useState<number | null>(null)
   const [selectedCarta, setSelectedCarta] = useState<Carta | null>(null)
+
+  // Reset pagination when filter or search changes
+  useEffect(() => { setVisibleCount(PAGE_SIZE) }, [activeFilter, searchQuery])
 
   // Cuando el filtro es "documentos" mostramos cartas; resto muestra fotos
   const showingCartas = activeFilter === 'documentos'
@@ -181,16 +187,28 @@ export function Gallery({ fotos, cartas = [] }: GalleryProps) {
       ) : (
         /* ── Vista otras categorías: fotos ── */
         filteredFotos.length > 0 ? (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {filteredFotos.map((foto, index) => (
-              <PhotoCard
-                key={foto.id}
-                foto={foto}
-                onClick={() => setSelectedFotoIndex(index)}
-                featured={index === 0 && foto.destacada}
-              />
-            ))}
-          </div>
+          <>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {filteredFotos.slice(0, visibleCount).map((foto, index) => (
+                <PhotoCard
+                  key={foto.id}
+                  foto={foto}
+                  onClick={() => setSelectedFotoIndex(index)}
+                  featured={index === 0 && foto.destacada}
+                />
+              ))}
+            </div>
+            {visibleCount < filteredFotos.length && (
+              <div className="flex justify-center mt-10">
+                <button
+                  onClick={() => setVisibleCount((n) => n + PAGE_SIZE)}
+                  className="btn-outline"
+                >
+                  Ver más ({filteredFotos.length - visibleCount} restantes)
+                </button>
+              </div>
+            )}
+          </>
         ) : (
           <div className="text-center py-12">
             <p className="text-body-lg text-on-surface-variant">

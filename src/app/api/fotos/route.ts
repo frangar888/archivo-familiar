@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { revalidatePath } from 'next/cache'
 import { NextRequest, NextResponse } from 'next/server'
 
 // Solo server-side — nunca expuesto al browser
@@ -53,6 +54,8 @@ export async function PATCH(req: NextRequest) {
   const { data, error } = await adminSupabase
     .from('fotos').update(body).eq('id', id).select().single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  revalidatePath('/galeria')
+  revalidatePath('/')
   return NextResponse.json(data)
 }
 
@@ -66,5 +69,7 @@ export async function DELETE(req: NextRequest) {
 
   const { error } = await adminSupabase.from('fotos').delete().eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  revalidatePath('/galeria')
+  revalidatePath('/')
   return NextResponse.json({ success: true })
 }
