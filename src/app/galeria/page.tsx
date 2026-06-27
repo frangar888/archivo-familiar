@@ -1,11 +1,7 @@
 import { Suspense } from 'react'
 import { getFotos, getCartas } from '@/lib/data'
-import { syncDriveFotos } from '@/lib/drive-sync'
 import { Gallery } from '@/components/galeria'
 
-// Revalida cada 60s: en cada revalidación se sincroniza Drive → Supabase
-// antes de leer los datos, así las fotos nuevas en la carpeta aparecen
-// automáticamente sin intervención manual.
 export const revalidate = 60
 
 export const metadata = {
@@ -14,8 +10,6 @@ export const metadata = {
 }
 
 async function GalleryContent() {
-  // Sync primero (no-op si DRIVE_PHOTOS_FOLDER_ID no está configurado)
-  await syncDriveFotos().catch(() => {})
   const [fotos, cartas] = await Promise.all([getFotos(), getCartas()])
   return <Gallery fotos={fotos} cartas={cartas} />
 }

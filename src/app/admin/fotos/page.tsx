@@ -48,7 +48,7 @@ export default function AdminFotosPage() {
 
   // Drive sync state
   const [syncing, setSyncing] = useState(false)
-  const [syncResult, setSyncResult] = useState<{ added: number; removed: number; total: number } | null>(null)
+  const [syncResult, setSyncResult] = useState<{ added: number; removed: number; deduplicated: number; total: number } | null>(null)
   const [syncError, setSyncError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -220,11 +220,12 @@ export default function AdminFotosPage() {
           <div className="card p-4 mb-6 flex items-center gap-3">
             <Check className="w-5 h-5 text-primary shrink-0" />
             <p className="text-body-md text-on-surface">
-              {syncResult.added === 0 && syncResult.removed === 0
+              {syncResult.added === 0 && syncResult.removed === 0 && syncResult.deduplicated === 0
                 ? `Galería al día — ${syncResult.total} foto${syncResult.total !== 1 ? 's' : ''} en la carpeta`
                 : [
                     syncResult.added > 0 && `${syncResult.added} agregada${syncResult.added !== 1 ? 's' : ''}`,
                     syncResult.removed > 0 && `${syncResult.removed} eliminada${syncResult.removed !== 1 ? 's' : ''}`,
+                    syncResult.deduplicated > 0 && `${syncResult.deduplicated} duplicado${syncResult.deduplicated !== 1 ? 's' : ''} limpiado${syncResult.deduplicated !== 1 ? 's' : ''}`,
                   ].filter(Boolean).join(' · ')
               }
             </p>
