@@ -175,12 +175,12 @@ export function PhotoModal({
 
       {/* Contenido */}
       <div
-        className="relative max-w-5xl w-full max-h-[90vh] flex flex-col md:flex-row gap-6 animate-fade-in"
+        className="relative w-[95vw] h-[95vh] flex flex-col animate-fade-in"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Imagen con zoom */}
+        {/* Imagen con zoom — ocupa casi todo el espacio vertical */}
         <div
-          className="relative flex-1 min-h-[300px] md:min-h-[500px] rounded-card bg-surface-container-low p-2 overflow-hidden"
+          className="relative flex-1 min-h-0 rounded-card bg-surface-container-low p-2 overflow-hidden"
           onWheel={handleWheel}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
@@ -203,13 +203,13 @@ export function PhotoModal({
               fill
               className="object-contain"
               style={foto.rotacion ? { transform: `rotate(${foto.rotacion}deg)` } : undefined}
-              sizes="(max-width: 768px) 100vw, 800px"
+              sizes="95vw"
               priority
               draggable={false}
             />
           </div>
 
-          {/* Hint zoom (solo cuando scale=1) */}
+          {/* Hint zoom */}
           {!isZoomed && (
             <div className="absolute bottom-4 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-black/40 text-white/60 text-body-sm pointer-events-none select-none">
               Click o scroll para ampliar
@@ -217,46 +217,30 @@ export function PhotoModal({
           )}
         </div>
 
-        {/* Info */}
-        <div className="md:w-80 p-6 rounded-card bg-surface-container-lowest">
-          <h2 className="font-serif text-headline-sm text-on-surface mb-4">
+        {/* Info — franja compacta debajo de la imagen */}
+        <div className="shrink-0 mt-3 px-4 py-3 rounded-card bg-surface-container-lowest flex flex-wrap items-center gap-x-6 gap-y-1">
+          <h2 className="font-serif text-title-md text-on-surface">
             {foto.titulo}
           </h2>
-
+          {foto.fecha_aproximada && (
+            <span className="flex items-center gap-1.5 text-body-sm text-on-surface-variant">
+              <Calendar className="w-4 h-4 text-primary shrink-0" />
+              {foto.fecha_aproximada}
+            </span>
+          )}
+          {foto.lugar && (
+            <span className="flex items-center gap-1.5 text-body-sm text-on-surface-variant">
+              <MapPin className="w-4 h-4 text-primary shrink-0" />
+              {foto.lugar}
+            </span>
+          )}
           {foto.descripcion && (
-            <p className="text-body-md text-on-surface-variant mb-6 leading-relaxed">
+            <p className="w-full text-body-sm text-on-surface-variant mt-0.5">
               {foto.descripcion}
             </p>
           )}
-
-          <div className="space-y-3">
-            {foto.fecha_aproximada && (
-              <div className="flex items-center gap-3 text-body-md text-on-surface-variant">
-                <Calendar className="w-5 h-5 text-primary" />
-                <span>{foto.fecha_aproximada}</span>
-              </div>
-            )}
-
-            {foto.lugar && (
-              <div className="flex items-center gap-3 text-body-md text-on-surface-variant">
-                <MapPin className="w-5 h-5 text-primary" />
-                <span>{foto.lugar}</span>
-              </div>
-            )}
-
-            {categoriaInfo && (
-              <div className="pt-3 border-t border-surface-container-high">
-                <span className="badge-category">{categoriaInfo.label}</span>
-              </div>
-            )}
-          </div>
-
-          {/* Atajo reset zoom */}
           {isZoomed && (
-            <button
-              onClick={resetZoom}
-              className="mt-6 w-full btn-outline text-body-sm"
-            >
+            <button onClick={resetZoom} className="ml-auto text-body-sm text-primary hover:underline shrink-0">
               Restablecer zoom
             </button>
           )}
