@@ -59,24 +59,39 @@ async function listFolderImages(folderId: string, token: string) {
  *
  * No-op if DRIVE_PHOTOS_FOLDER_ID is not configured.
  */
-export async function syncDriveFotos(): Promise<{ synced: number; total: number }> {
-  if (!FOLDER_ID || !auth) return { synced: 0, total: 0 }
+/**
+ * Lists Drive folder images and creates Supabase records for any new ones.
+ * Also deletes Supabase records whose Drive file no longer exists in the folder.
+ * Existing records with matching fileId are left untouched (metadata preserved).
+ * Returns { added, removed, total }.
+ *
+ * No-op if DRIVE_PHOTOS_FOLDER_ID is not configured.
+ */
+export async function syncDriveFotos(): Promise<{ added: number; removed: number; total: number }> {
+  if (!FOLDER_ID || !auth) return { added: 0, removed: 0, total: 0 }
 
   const client = await auth.getClient()
   const { token } = await client.getAccessToken()
   if (!token) throw new Error('No se pudo obtener token de Google')
 
   const driveFiles = await listFolderImages(FOLDER_ID, token)
+  const driveIds = new Set(driveFiles.map((f) => f.id))
 
-  const { data: existing } = await adminSupabase.from('fotos').select('imagen_url')
-  const knownIds = new Set(
-    (existing ?? []).map((f: { imagen_url: string }) => extractFileId(f.imagen_url)).filter(Boolean)
-  )
+  const { data: existing } = await adminSupabase.from('fotos').select('id, imagen_url')
+  const existingFotos = existing ?? []
 
+  // Build map: fileId → supabase record id
+  const fileIdToRecord = new Map<string, string>()
+  for (const row of existingFotos as { id: string; imagen_url: string }[]) {
+    const fid = extractFileId(row.imagen_url)
+    if (fid) fileIdToRecord.set(fid, row.id)
+  }
+
+  // Insert new files (in Drive but not in Supabase)
   const toInsert = driveFiles
-    .filter((f) => !knownIds.has(f.id))
+    .filter((f) => !fileIdToRecord.has(f.id))
     .map((f) => ({
-      titulo: f.name.replace(/\.[^.]+$/, ''), // filename without extension as default title
+      titulo: f.name.replace(/\.[^.]+$/, ''),
       imagen_url: `https://drive.google.com/file/d/${f.id}/view`,
       personas_ids: [] as string[],
       orden: 0,
@@ -88,7 +103,17 @@ export async function syncDriveFotos(): Promise<{ synced: number; total: number 
     await adminSupabase.from('fotos').insert(toInsert)
   }
 
-  return { synced: toInsert.length, total: driveFiles.length }
+  // Delete records whose file no longer exists in Drive
+  const toDelete: string[] = []
+  fileIdToRecord.forEach((recordId, fid) => {
+    if (!driveIds.has(fid)) toDelete.push(recordId)
+  })
+
+  if (toDelete.length > 0) {
+    await adminSupabase.from('fotos').delete().in('id', toDelete)
+  }
+
+  return { added: toInsert.length, removed: toDelete.length, total: driveFiles.length }
 }
 
 export const driveConfigured = !!FOLDER_ID

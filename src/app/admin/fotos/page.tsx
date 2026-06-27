@@ -48,7 +48,7 @@ export default function AdminFotosPage() {
 
   // Drive sync state
   const [syncing, setSyncing] = useState(false)
-  const [syncResult, setSyncResult] = useState<{ synced: number; total: number } | null>(null)
+  const [syncResult, setSyncResult] = useState<{ added: number; removed: number; total: number } | null>(null)
   const [syncError, setSyncError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -198,23 +198,21 @@ export default function AdminFotosPage() {
             </Link>
             <h1 className="font-serif text-headline-md text-on-surface">Fotos</h1>
           </div>
-          {!editingId && (
-            <div className="flex gap-2">
-              <button
-                onClick={handleSync}
-                disabled={syncing}
-                className={cn('btn-outline', syncing && 'opacity-70')}
-                title="Sincroniza fotos nuevas desde la carpeta de Drive configurada"
-              >
-                <RefreshCw className={cn('w-5 h-5', syncing && 'animate-spin')} />
-                {syncing ? 'Sincronizando...' : 'Sincronizar Drive'}
-              </button>
-              <button onClick={handleNew} className="btn-primary">
-                <Plus className="w-5 h-5" />
-                Agregar
-              </button>
-            </div>
-          )}
+          <div className="flex gap-2">
+            <button
+              onClick={handleSync}
+              disabled={syncing}
+              className={cn('btn-outline', syncing && 'opacity-70')}
+              title="Sincroniza con la carpeta de Drive configurada"
+            >
+              <RefreshCw className={cn('w-5 h-5', syncing && 'animate-spin')} />
+              {syncing ? 'Sincronizando...' : 'Sincronizar Drive'}
+            </button>
+            <button onClick={handleNew} className="btn-primary">
+              <Plus className="w-5 h-5" />
+              Agregar
+            </button>
+          </div>
         </div>
 
         {/* Resultado de sincronización */}
@@ -222,9 +220,12 @@ export default function AdminFotosPage() {
           <div className="card p-4 mb-6 flex items-center gap-3">
             <Check className="w-5 h-5 text-primary shrink-0" />
             <p className="text-body-md text-on-surface">
-              {syncResult.synced === 0
-                ? `La galería está al día (${syncResult.total} foto${syncResult.total !== 1 ? 's' : ''} en la carpeta)`
-                : `${syncResult.synced} foto${syncResult.synced !== 1 ? 's' : ''} nuevas agregadas · ${syncResult.total} total en la carpeta`
+              {syncResult.added === 0 && syncResult.removed === 0
+                ? `Galería al día — ${syncResult.total} foto${syncResult.total !== 1 ? 's' : ''} en la carpeta`
+                : [
+                    syncResult.added > 0 && `${syncResult.added} agregada${syncResult.added !== 1 ? 's' : ''}`,
+                    syncResult.removed > 0 && `${syncResult.removed} eliminada${syncResult.removed !== 1 ? 's' : ''}`,
+                  ].filter(Boolean).join(' · ')
               }
             </p>
           </div>
@@ -235,12 +236,64 @@ export default function AdminFotosPage() {
           </div>
         )}
 
-        {/* Formulario de edición individual */}
-        {editingId && (
-          <div className="card p-6 mb-8">
-            <h2 className="font-serif text-title-lg text-on-surface mb-6">
-              {editingId === 'new' ? 'Nueva foto' : 'Editar foto'}
-            </h2>
+        {/* Grilla de fotos */}
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          {fotos.length === 0 ? (
+            <div className="col-span-full text-center py-12 text-on-surface-variant">
+              No hay fotos registradas
+            </div>
+          ) : (
+            fotos.map((foto) => (
+              <div key={foto.id} className="card overflow-hidden group relative">
+                <div className="aspect-square relative bg-surface-container">
+                  <Image
+                    src={getInternalFileUrl(foto.imagen_url)}
+                    alt={foto.titulo}
+                    fill
+                    className="object-cover"
+                    style={foto.rotacion ? { transform: `rotate(${foto.rotacion}deg) scale(1.05)` } : undefined}
+                    sizes="200px"
+                  />
+                </div>
+                <div className="p-3">
+                  <p className="text-body-sm font-medium text-on-surface line-clamp-1">{foto.titulo}</p>
+                  <p className="text-body-sm text-outline">{foto.fecha_aproximada || 'Sin fecha'}</p>
+                </div>
+                <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    onClick={() => handleEdit(foto)}
+                    className="p-2 rounded-full bg-white/90 hover:bg-white transition-colors"
+                  >
+                    <Pencil className="w-4 h-4 text-on-surface-variant" />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(foto.id)}
+                    className="p-2 rounded-full bg-white/90 hover:bg-error-container transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4 text-error" />
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* Modal de edición — se abre centrado sobre la página */}
+      {editingId && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-scrim/60 backdrop-blur-sm"
+          onClick={(e) => { if (e.target === e.currentTarget) handleCancel() }}
+        >
+          <div className="card p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="font-serif text-title-lg text-on-surface">
+                {editingId === 'new' ? 'Nueva foto' : 'Editar foto'}
+              </h2>
+              <button onClick={handleCancel} className="p-2 rounded-full hover:bg-surface-container-high transition-colors">
+                <X className="w-5 h-5 text-on-surface-variant" />
+              </button>
+            </div>
 
             {error && (
               <div className="mb-6 p-4 rounded-xl bg-error-container text-error text-body-md">
@@ -272,7 +325,7 @@ export default function AdminFotosPage() {
                 label="URL de imagen"
                 htmlFor="imagen_url"
                 required
-                hint="Link de Google Drive compartido con la cuenta de servicio"
+                hint="Link de Google Drive"
               >
                 <input
                   id="imagen_url"
@@ -396,51 +449,8 @@ export default function AdminFotosPage() {
               </button>
             </div>
           </div>
-        )}
-
-        {/* Grilla de fotos */}
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          {fotos.length === 0 ? (
-            <div className="col-span-full text-center py-12 text-on-surface-variant">
-              No hay fotos registradas
-            </div>
-          ) : (
-            fotos.map((foto) => (
-              <div key={foto.id} className="card overflow-hidden group relative">
-                <div className="aspect-square relative bg-surface-container">
-                  <Image
-                    src={getInternalFileUrl(foto.imagen_url)}
-                    alt={foto.titulo}
-                    fill
-                    className="object-cover"
-                    style={foto.rotacion ? { transform: `rotate(${foto.rotacion}deg) scale(1.05)` } : undefined}
-                    sizes="200px"
-                  />
-                </div>
-                <div className="p-3">
-                  <p className="text-body-sm font-medium text-on-surface line-clamp-1">{foto.titulo}</p>
-                  <p className="text-body-sm text-outline">{foto.fecha_aproximada || 'Sin fecha'}</p>
-                </div>
-                <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button
-                    onClick={() => handleEdit(foto)}
-                    className="p-2 rounded-full bg-white/90 hover:bg-white transition-colors"
-                  >
-                    <Pencil className="w-4 h-4 text-on-surface-variant" />
-                  </button>
-                  <button
-                    onClick={() => handleDelete(foto.id)}
-                    className="p-2 rounded-full bg-white/90 hover:bg-error-container transition-colors"
-                  >
-                    <Trash2 className="w-4 h-4 text-error" />
-                  </button>
-                </div>
-              </div>
-            ))
-          )}
         </div>
-
-      </div>
+      )}
     </div>
   )
 }
