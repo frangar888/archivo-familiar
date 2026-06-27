@@ -40,6 +40,7 @@ interface DriveFile {
   id: string
   name: string
   mimeType: string
+  thumbnailLink: string | null
   alreadyImported: boolean
 }
 
@@ -377,14 +378,21 @@ export default function AdminFotosPage() {
                             : 'border-transparent hover:border-outline/40'
                         )}
                       >
-                        <div className="aspect-square relative bg-surface-container">
-                          <Image
-                            src={getInternalFileUrl(`https://drive.google.com/file/d/${file.id}/view`)}
-                            alt={file.name}
-                            fill
-                            className="object-cover"
-                            sizes="120px"
-                          />
+                        <div className="aspect-square relative bg-surface-container overflow-hidden">
+                          {file.thumbnailLink ? (
+                            // Thumbnail pequeño servido directo por Google (no pasa por el proxy)
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={file.thumbnailLink}
+                              alt={file.name}
+                              loading="lazy"
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-outline/40 text-xs">
+                              Sin vista previa
+                            </div>
+                          )}
                         </div>
                         <div className="p-1.5">
                           <p className="text-[11px] text-on-surface line-clamp-2 leading-tight">

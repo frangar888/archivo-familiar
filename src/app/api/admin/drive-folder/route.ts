@@ -56,13 +56,13 @@ export async function GET(req: NextRequest) {
   }
 
   // List image files in the folder (paginate up to 500)
-  const allFiles: { id: string; name: string; mimeType: string }[] = []
+  const allFiles: { id: string; name: string; mimeType: string; thumbnailLink?: string }[] = []
   let pageToken: string | undefined
 
   do {
     const params = new URLSearchParams({
       q: `'${folderId}' in parents and mimeType contains 'image/' and trashed = false`,
-      fields: 'nextPageToken,files(id,name,mimeType)',
+      fields: 'nextPageToken,files(id,name,mimeType,thumbnailLink)',
       pageSize: '200',
       orderBy: 'name',
       supportsAllDrives: 'true',
@@ -105,6 +105,8 @@ export async function GET(req: NextRequest) {
     id: f.id,
     name: f.name,
     mimeType: f.mimeType,
+    // thumbnailLink is a small (~220px) pre-signed URL from Google — no proxy needed
+    thumbnailLink: f.thumbnailLink ?? null,
     alreadyImported: importedIds.has(f.id),
   }))
 
