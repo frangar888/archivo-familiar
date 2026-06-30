@@ -1,7 +1,7 @@
 import { GoogleAuth } from 'google-auth-library'
+import sharp from 'sharp'
 import type { NextRequest } from 'next/server'
 
-// Inicializado una sola vez a nivel de módulo — Vercel reutiliza entre requests en la misma instancia
 if (!process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
   throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON no está configurado')
 }
@@ -11,25 +11,24 @@ const auth = new GoogleAuth({
   scopes: ['https://www.googleapis.com/auth/drive.readonly'],
 })
 
-// Regex para validar file IDs de Drive (evita SSRF)
 const FILE_ID_REGEX = /^[A-Za-z0-9_-]{10,}$/
+
+// Thumbnail max dimension (px). Keeps aspect ratio, never upscales.
+const THUMB_SIZE = 400
 
 export async function GET(
   req: NextRequest,
   { params }: { params: { fileId: string } }
 ) {
-  // 1. Auth — verificar cookie de sesión
   if (!req.cookies.has('af_session')) {
     return new Response('No autorizado', { status: 401 })
   }
 
-  // 2. Validar fileId
   const { fileId } = params
   if (!FILE_ID_REGEX.test(fileId)) {
     return new Response('File ID inválido', { status: 400 })
   }
 
-  // 3. Obtener access token
   let token: string | null | undefined
   try {
     const client = await auth.getClient()
@@ -43,32 +42,40 @@ export async function GET(
     return new Response('No se pudo obtener token de Google', { status: 500 })
   }
 
-  // 4. Fetch el archivo desde Drive
-  const driveUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`
-  const driveRes = await fetch(driveUrl, {
-    headers: { Authorization: `Bearer ${token}` },
-  })
+  const driveRes = await fetch(
+    `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  )
 
-  // 5. Manejar errores de Drive
-  if (driveRes.status === 404) {
-    return new Response('Archivo no encontrado', { status: 404 })
-  }
-  if (driveRes.status === 403) {
-    return new Response('Sin acceso al archivo — compartilo con la cuenta de servicio', { status: 403 })
-  }
-  if (!driveRes.ok) {
-    return new Response(`Error de Drive: ${driveRes.status}`, { status: 502 })
+  if (driveRes.status === 404) return new Response('Archivo no encontrado', { status: 404 })
+  if (driveRes.status === 403) return new Response('Sin acceso al archivo', { status: 403 })
+  if (!driveRes.ok) return new Response(`Error de Drive: ${driveRes.status}`, { status: 502 })
+
+  const isThumb = req.nextUrl.searchParams.has('thumb')
+
+  if (isThumb) {
+    // Resize server-side so the browser receives a small image (~20-50 KB)
+    // instead of the full-resolution file (potentially several MB).
+    const buffer = Buffer.from(await driveRes.arrayBuffer())
+    const thumb = await sharp(buffer)
+      .resize(THUMB_SIZE, THUMB_SIZE, { fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 72, progressive: true })
+      .toBuffer()
+
+    return new Response(thumb as unknown as BodyInit, {
+      status: 200,
+      headers: {
+        'Content-Type': 'image/jpeg',
+        'Cache-Control': 'public, max-age=86400, stale-while-revalidate=3600',
+      },
+    })
   }
 
-  // 6. Streamear la respuesta directamente (sin bufferear en memoria)
+  // Full resolution — stream directly without buffering
   const contentType = driveRes.headers.get('Content-Type') ?? 'application/octet-stream'
   const contentLength = driveRes.headers.get('Content-Length')
-
   const headers: Record<string, string> = {
     'Content-Type': contentType,
-    // public permite que Next.js image optimizer cachee el resultado optimizado en disco
-    // entre visitantes — evita re-descargar desde Drive en cada primera visita.
-    // 24h de cache (Drive files no cambian; se invalida manualmente si es necesario).
     'Cache-Control': 'public, max-age=86400, stale-while-revalidate=3600',
   }
   if (contentLength) headers['Content-Length'] = contentLength

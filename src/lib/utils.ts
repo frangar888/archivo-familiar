@@ -100,6 +100,13 @@ export function getInternalFileUrl(url: string): string {
   return fileId ? `/api/drive/${fileId}` : url
 }
 
+// Versión thumbnail (400px, JPEG comprimido) para grillas — no para modales
+export function getInternalThumbnailUrl(url: string): string {
+  const base = getInternalFileUrl(url)
+  if (!base.startsWith('/api/drive/')) return base
+  return `${base}?thumb`
+}
+
 // URL de embed para reproducir video de Drive en iframe
 export function getDriveVideoEmbedUrl(url: string): string | null {
   const fileId = getDriveFileId(url)
