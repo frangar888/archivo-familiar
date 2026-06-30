@@ -66,7 +66,10 @@ export async function GET(
 
   const headers: Record<string, string> = {
     'Content-Type': contentType,
-    'Cache-Control': 'private, max-age=3600',
+    // public permite que Next.js image optimizer cachee el resultado optimizado en disco
+    // entre visitantes — evita re-descargar desde Drive en cada primera visita.
+    // 24h de cache (Drive files no cambian; se invalida manualmente si es necesario).
+    'Cache-Control': 'public, max-age=86400, stale-while-revalidate=3600',
   }
   if (contentLength) headers['Content-Length'] = contentLength
 

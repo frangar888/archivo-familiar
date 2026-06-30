@@ -31,6 +31,8 @@ export function PhotoCard({ foto, onClick, featured = false }: PhotoCardProps) {
           className="object-cover photo-historic transition-transform duration-500 group-hover:scale-105"
           style={foto.rotacion ? { transform: `rotate(${foto.rotacion}deg) scale(1.05)` } : undefined}
           sizes={featured ? '(max-width: 768px) 100vw, 800px' : '(max-width: 768px) 50vw, 300px'}
+          loading={featured ? 'eager' : 'lazy'}
+          priority={featured}
         />
         <div className="grain-overlay" />
 

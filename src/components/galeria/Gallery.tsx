@@ -14,7 +14,7 @@ interface GalleryProps {
   cartas?: Carta[]
 }
 
-const PAGE_SIZE = 24
+const PAGE_SIZE = 12
 
 const categorias: {
   value: CategoriaFoto | null
