@@ -58,6 +58,7 @@ export async function GET(
     // instead of the full-resolution file (potentially several MB).
     const buffer = Buffer.from(await driveRes.arrayBuffer())
     const thumb = await sharp(buffer)
+      .rotate()  // auto-rotate based on EXIF orientation tag, then strips it
       .resize(THUMB_SIZE, THUMB_SIZE, { fit: 'inside', withoutEnlargement: true })
       .jpeg({ quality: 72, progressive: true })
       .toBuffer()
