@@ -11,6 +11,7 @@ type PersonaNodeData = {
   persona: Persona
   onClick: (persona: Persona) => void
   isInLaw?: boolean
+  isAnchor?: boolean
 }
 
 export const PersonaNode = memo(function PersonaNode({
@@ -18,23 +19,26 @@ export const PersonaNode = memo(function PersonaNode({
 }: {
   data: PersonaNodeData
 }) {
-  const { persona, onClick, isInLaw } = data
+  const { persona, onClick, isInLaw, isAnchor } = data
   const isFemale = persona.genero === 'femenino'
   const estaVivo = !persona.fecha_fallecimiento
 
-  // Color scheme: blood relatives use primary (male) / secondary (female)
-  // In-laws use a neutral warm-gray (outline) regardless of gender
-  const borderColor = isInLaw
-    ? 'border-outline'
+  // Color scheme: anchor couple = amber/gold; in-laws = neutral; blood = primary/secondary
+  const borderColor = isAnchor
+    ? 'border-amber-500'
+    : isInLaw ? 'border-outline'
     : isFemale ? 'border-secondary' : 'border-primary'
-  const avatarBorder = isInLaw
-    ? 'border-outline/60'
+  const avatarBorder = isAnchor
+    ? 'border-amber-400'
+    : isInLaw ? 'border-outline/60'
     : isFemale ? 'border-secondary' : 'border-primary'
-  const avatarBg = isInLaw
-    ? 'bg-[#76786b]/10'
+  const avatarBg = isAnchor
+    ? 'bg-amber-50'
+    : isInLaw ? 'bg-[#76786b]/10'
     : isFemale ? 'bg-secondary/10' : 'bg-primary/10'
-  const iconColor = isInLaw
-    ? 'text-outline'
+  const iconColor = isAnchor
+    ? 'text-amber-600'
+    : isInLaw ? 'text-outline'
     : isFemale ? 'text-secondary' : 'text-primary'
 
   const anioNac = persona.fecha_nacimiento ? formatYear(persona.fecha_nacimiento) : null
@@ -57,6 +61,7 @@ export const PersonaNode = memo(function PersonaNode({
           'hover:shadow-card-hover hover:scale-[1.04] transition-all duration-200',
           'focus:outline-none focus-visible:ring-2 focus-visible:ring-primary',
           borderColor,
+          isAnchor && 'ring-2 ring-amber-400 ring-offset-1 shadow-[0_0_12px_rgba(251,191,36,0.4)]',
           !estaVivo && 'opacity-80'
         )}
       >

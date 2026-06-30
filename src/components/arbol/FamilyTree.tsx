@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useCallback, useEffect } from 'react'
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import {
   ReactFlow,
   Background,
@@ -146,6 +146,7 @@ function buildLayout(
   onClick: (p: Persona) => void,
   highlighted: Set<string> | null,
   collapsed: Set<string>,
+  anchorIds: Set<string>,
 ) {
   const pMap = new Map(personas.map((p) => [p.id, p]))
   const validMats = matrimonios.filter(
@@ -470,17 +471,28 @@ function buildLayout(
   // ── 5. Build React Flow nodes ─────────────────────────────────────────────
   const dimmed = (id: string) => highlighted !== null && !highlighted.has(id)
 
+  // Debug: log all personas to help identify anchor match issues
+  console.log('[buildLayout] anchorIds:', Array.from(anchorIds))
+  personas.forEach((p) => console.log(`  persona: "${p.nombre}" "${p.apellido}" id=${p.id} anchor=${anchorIds.has(p.id)}`))
+
   // Skip hidden persons
   const nodes: any[] = personas
     .filter((p) => !hiddenPersonIds.has(p.id))
-    .map((p) => ({
-      id: p.id,
-      type: 'personaNode',
-      position: { x: posX.get(p.id) ?? 0, y: posY.get(p.id) ?? 0 },
-      data: { persona: p, onClick, isInLaw: isInLaw.has(p.id) },
-      draggable: false,
-      style: { opacity: dimmed(p.id) ? 0.15 : 1, transition: 'opacity 0.2s' },
-    }))
+    .map((p) => {
+      const isAnchor = anchorIds.has(p.id)
+      return {
+        id: p.id,
+        type: 'personaNode',
+        position: { x: posX.get(p.id) ?? 0, y: posY.get(p.id) ?? 0 },
+        data: { persona: p, onClick, isInLaw: isInLaw.has(p.id), isAnchor },
+        draggable: false,
+        style: {
+          opacity: dimmed(p.id) ? 0.15 : 1,
+          transition: 'opacity 0.2s',
+          ...(isAnchor && { outline: '3px solid #f59e0b', borderRadius: '14px', boxShadow: '0 0 16px rgba(245,158,11,0.5)' }),
+        },
+      }
+    })
 
   // Family junction nodes (center between spouses, halfway down to children)
   coupleMap.forEach((data, key) => {
@@ -758,6 +770,23 @@ function SearchPanel({
 // ─── Node types ────────────────────────────────────────────────────────────────
 const nodeTypes = { personaNode: PersonaNode, famNode: FamNode, famBgNode: FamBgNode, genSepNode: GenSepNode }
 
+// ─── Center view on anchor couple on first mount ───────────────────────────────
+function AnchorCenter({ anchorIds }: { anchorIds: Set<string> }) {
+  const { fitView } = useReactFlow()
+  const anchorRef = useRef(anchorIds)
+
+  useEffect(() => {
+    const ids = anchorRef.current
+    if (ids.size === 0) return
+    const t = setTimeout(() => {
+      fitView({ nodes: Array.from(ids).map(id => ({ id })), duration: 300, padding: 0.6 })
+    }, 150)
+    return () => clearTimeout(t)
+  }, [fitView])
+
+  return null
+}
+
 // ─── Main component ────────────────────────────────────────────────────────────
 export function FamilyTree({
   personas,
@@ -771,6 +800,19 @@ export function FamilyTree({
   const [collapsed, setCollapsed] = useState<Set<string>>(
     () => computeInitialCollapsed(personas, matrimonios)
   )
+
+  // IDs of the anchor couple (Hortensia De Simon + Cipriano Garcia) — highlighted in amber
+  const anchorIds = useMemo(() => {
+    const ids = new Set<string>()
+    personas.forEach((p) => {
+      const n = p.nombre.toLowerCase()
+      const a = p.apellido.toLowerCase()
+      const ac = (p.apellido_casada ?? '').toLowerCase()
+      if (n === 'hortensia' && (a.includes('simon') || ac.includes('simon'))) ids.add(p.id)
+      if (n === 'cipriano' && a.includes('garcia')) ids.add(p.id)
+    })
+    return ids
+  }, [personas])
 
   const handleSelect = useCallback(
     (p: Persona) => {
@@ -805,8 +847,8 @@ export function FamilyTree({
   }, [])
 
   const { nodes, edges } = useMemo(
-    () => buildLayout(personas, matrimonios, handleSelect, highlighted, collapsed),
-    [personas, matrimonios, handleSelect, highlighted, collapsed]
+    () => buildLayout(personas, matrimonios, handleSelect, highlighted, collapsed, anchorIds),
+    [personas, matrimonios, handleSelect, highlighted, collapsed, anchorIds]
   )
 
   if (personas.length === 0) {
@@ -863,6 +905,7 @@ export function FamilyTree({
           maskColor="rgba(245,240,228,0.88)"
           style={{ background: '#fcf9f0', border: '1px solid #c8bc9d', borderRadius: '12px' }}
         />
+        <AnchorCenter anchorIds={anchorIds} />
         <SearchPanel personas={personas} onHighlight={handleHighlight} />
         <TreeControls />
         {highlighted && (

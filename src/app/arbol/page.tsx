@@ -31,7 +31,7 @@ export default function ArbolPage() {
       {/* Header compacto */}
       <div className="flex-shrink-0 px-4 sm:px-6 lg:px-8 pt-8 pb-4 max-w-7xl mx-auto w-full">
         <h1 className="font-serif text-display-sm text-on-surface mb-1">
-          Árbol Genealógico
+          Árbol genealogico Familia De Simon-Gonzalez
         </h1>
         <p className="text-body-md text-on-surface-variant">
           Arrastrá para moverte · Scroll para hacer zoom · Click en una persona para ver su historia
