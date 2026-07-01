@@ -797,33 +797,44 @@ export function FamilyTree({
     () => computeInitialCollapsed(personas, matrimonios)
   )
 
-  // IDs of the anchor couple (Hortensia De Simon + Cipriano Garcia) — highlighted in amber
-  // Strategy: find Cipriano Garcia (unique), then find his specific spouse via shared children
-  // or matrimonios — avoids matching the wrong Hortensia De Simon.
+  // IDs of the anchor couple: find the matrimonio where one side is Hortensia De Simon
+  // and the other is Cipriano Garcia (handles multiple people with the same name).
   const anchorIds = useMemo(() => {
     const ids = new Set<string>()
-    const cipriano = personas.find(
-      (p) => p.nombre.toLowerCase() === 'cipriano' && p.apellido.toLowerCase().includes('garcia')
-    )
-    if (!cipriano) return ids
-    ids.add(cipriano.id)
+    const pMap = new Map(personas.map((p) => [p.id, p]))
 
-    // Try matrimonios first
-    const mat = matrimonios.find(
-      (m) => m.persona1_id === cipriano.id || m.persona2_id === cipriano.id
-    )
-    if (mat) {
-      ids.add(mat.persona1_id === cipriano.id ? mat.persona2_id : mat.persona1_id)
-    } else {
-      // Fallback: find spouse via shared child (padre_id/madre_id)
-      const child = personas.find(
-        (p) => p.padre_id === cipriano.id || p.madre_id === cipriano.id
-      )
-      if (child) {
-        const spouseId = child.padre_id === cipriano.id ? child.madre_id : child.padre_id
-        if (spouseId) ids.add(spouseId)
+    const isHortensia = (p: Persona) =>
+      p.nombre.toLowerCase() === 'hortensia' && p.apellido.toLowerCase().includes('simon')
+    const isCipriano = (p: Persona) =>
+      p.nombre.toLowerCase() === 'cipriano' && p.apellido.toLowerCase().includes('garcia')
+
+    // Search matrimonios for the specific couple
+    for (const m of matrimonios) {
+      const p1 = pMap.get(m.persona1_id)
+      const p2 = pMap.get(m.persona2_id)
+      if (!p1 || !p2) continue
+      if ((isHortensia(p1) && isCipriano(p2)) || (isCipriano(p1) && isHortensia(p2))) {
+        ids.add(p1.id)
+        ids.add(p2.id)
+        break
       }
     }
+
+    // Fallback: find via shared children (padre_id/madre_id)
+    if (ids.size === 0) {
+      for (const child of personas) {
+        if (!child.padre_id || !child.madre_id) continue
+        const padre = pMap.get(child.padre_id)
+        const madre = pMap.get(child.madre_id)
+        if (!padre || !madre) continue
+        if ((isHortensia(padre) && isCipriano(madre)) || (isCipriano(padre) && isHortensia(madre))) {
+          ids.add(padre.id)
+          ids.add(madre.id)
+          break
+        }
+      }
+    }
+
     return ids
   }, [personas, matrimonios])
 
