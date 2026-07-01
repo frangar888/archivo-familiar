@@ -471,10 +471,6 @@ function buildLayout(
   // ── 5. Build React Flow nodes ─────────────────────────────────────────────
   const dimmed = (id: string) => highlighted !== null && !highlighted.has(id)
 
-  // Debug: log all personas to help identify anchor match issues
-  console.log('[buildLayout] anchorIds:', Array.from(anchorIds))
-  personas.forEach((p) => console.log(`  persona: "${p.nombre}" "${p.apellido}" id=${p.id} anchor=${anchorIds.has(p.id)}`))
-
   // Skip hidden persons
   const nodes: any[] = personas
     .filter((p) => !hiddenPersonIds.has(p.id))
@@ -779,7 +775,7 @@ function AnchorCenter({ anchorIds }: { anchorIds: Set<string> }) {
     const ids = anchorRef.current
     if (ids.size === 0) return
     const t = setTimeout(() => {
-      fitView({ nodes: Array.from(ids).map(id => ({ id })), duration: 300, padding: 0.6 })
+      fitView({ nodes: Array.from(ids).map(id => ({ id })), duration: 300, padding: 2.0 })
     }, 150)
     return () => clearTimeout(t)
   }, [fitView])
@@ -802,17 +798,34 @@ export function FamilyTree({
   )
 
   // IDs of the anchor couple (Hortensia De Simon + Cipriano Garcia) — highlighted in amber
+  // Strategy: find Cipriano Garcia (unique), then find his specific spouse via shared children
+  // or matrimonios — avoids matching the wrong Hortensia De Simon.
   const anchorIds = useMemo(() => {
     const ids = new Set<string>()
-    personas.forEach((p) => {
-      const n = p.nombre.toLowerCase()
-      const a = p.apellido.toLowerCase()
-      const ac = (p.apellido_casada ?? '').toLowerCase()
-      if (n === 'hortensia' && (a.includes('simon') || ac.includes('simon'))) ids.add(p.id)
-      if (n === 'cipriano' && a.includes('garcia')) ids.add(p.id)
-    })
+    const cipriano = personas.find(
+      (p) => p.nombre.toLowerCase() === 'cipriano' && p.apellido.toLowerCase().includes('garcia')
+    )
+    if (!cipriano) return ids
+    ids.add(cipriano.id)
+
+    // Try matrimonios first
+    const mat = matrimonios.find(
+      (m) => m.persona1_id === cipriano.id || m.persona2_id === cipriano.id
+    )
+    if (mat) {
+      ids.add(mat.persona1_id === cipriano.id ? mat.persona2_id : mat.persona1_id)
+    } else {
+      // Fallback: find spouse via shared child (padre_id/madre_id)
+      const child = personas.find(
+        (p) => p.padre_id === cipriano.id || p.madre_id === cipriano.id
+      )
+      if (child) {
+        const spouseId = child.padre_id === cipriano.id ? child.madre_id : child.padre_id
+        if (spouseId) ids.add(spouseId)
+      }
+    }
     return ids
-  }, [personas])
+  }, [personas, matrimonios])
 
   const handleSelect = useCallback(
     (p: Persona) => {
