@@ -29,6 +29,7 @@ export async function POST(req: NextRequest) {
   try {
     const result = await syncDriveFotos()
     revalidatePath('/galeria')
+    revalidatePath('/documentos')
     revalidatePath('/')
     return NextResponse.json(result)
   } catch (err: any) {
