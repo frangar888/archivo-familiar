@@ -164,7 +164,11 @@ export async function syncDriveFotos(): Promise<SyncResult> {
     }))
 
   if (toInsert.length > 0) {
-    await adminSupabase.from('fotos').insert(toInsert)
+    const { error: insertError } = await adminSupabase.from('fotos').insert(toInsert)
+    if (insertError) {
+      console.error('[drive-sync] insert error:', JSON.stringify(insertError))
+      throw new Error(`Insert failed: ${insertError.message} (code: ${insertError.code})`)
+    }
   }
 
   // Update categoria on existing records if the file moved to a different subfolder
