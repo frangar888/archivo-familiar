@@ -2,7 +2,7 @@ export type Genero = 'masculino' | 'femenino' | 'otro'
 
 export type CategoriaEvento = 'espana' | 'travesia' | 'argentina' | 'familia'
 
-export type CategoriaFoto = 'retratos' | 'documentos' | 'lugares' | 'eventos' | 'vida_cotidiana'
+export type CategoriaFoto = string
 
 export type TipoFuenteVideo = 'youtube' | 'drive'
 export type CategoriaVideo = 'entrevista' | 'video'

@@ -149,6 +149,30 @@ export async function getFotos(categoria?: CategoriaFoto): Promise<Foto[]> {
   return data || []
 }
 
+// Fotos para la galería: excluye la categoría Documentos (tiene su propia sección)
+export async function getFotosGaleria(): Promise<Foto[]> {
+  const supabase = createServerClient()
+  const { data, error } = await supabase
+    .from('fotos')
+    .select('*')
+    .neq('categoria', 'Documentos')
+    .order('orden', { ascending: true })
+  if (error) throw error
+  return data || []
+}
+
+// Fotos de la sección Documentos
+export async function getFotosDocumentos(): Promise<Foto[]> {
+  const supabase = createServerClient()
+  const { data, error } = await supabase
+    .from('fotos')
+    .select('*')
+    .eq('categoria', 'Documentos')
+    .order('orden', { ascending: true })
+  if (error) throw error
+  return data || []
+}
+
 export async function getFotoById(id: string): Promise<Foto | null> {
   const supabase = createServerClient()
   const { data, error } = await supabase

@@ -775,7 +775,7 @@ function AnchorCenter({ anchorIds }: { anchorIds: Set<string> }) {
     const ids = anchorRef.current
     if (ids.size === 0) return
     const t = setTimeout(() => {
-      fitView({ nodes: Array.from(ids).map(id => ({ id })), duration: 300, padding: 2.0 })
+      fitView({ nodes: Array.from(ids).map(id => ({ id })), duration: 300, padding: 4.0 })
     }, 150)
     return () => clearTimeout(t)
   }, [fitView])

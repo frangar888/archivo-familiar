@@ -5,7 +5,6 @@ import Image from 'next/image'
 import { X, MapPin, Calendar, ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from 'lucide-react'
 import { getInternalFileUrl } from '@/lib/utils'
 import type { Foto } from '@/types'
-import { CATEGORIAS_FOTO } from '@/types'
 
 interface PhotoModalProps {
   foto: Foto
@@ -112,7 +111,6 @@ export function PhotoModal({
     else resetZoom()
   }
 
-  const categoriaInfo = foto.categoria ? CATEGORIAS_FOTO[foto.categoria] : null
   const isZoomed = scale > 1
 
   return (

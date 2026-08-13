@@ -17,41 +17,52 @@ const adminSupabase = createClient(
   { auth: { autoRefreshToken: false, persistSession: false } }
 )
 
-// Handles multiple Drive URL formats:
-//   https://drive.google.com/file/d/FILEID/view
-//   https://drive.google.com/open?id=FILEID
-//   https://drive.google.com/uc?export=view&id=FILEID
 function extractFileId(url: string): string | null {
   if (!url) return null
   const m = url.match(/\/d\/([A-Za-z0-9_-]+)/) ?? url.match(/[?&]id=([A-Za-z0-9_-]+)/)
   return m ? m[1] : null
 }
 
+async function driveList(params: Record<string, string>, token: string) {
+  const p = new URLSearchParams({
+    ...params,
+    supportsAllDrives: 'true',
+    includeItemsFromAllDrives: 'true',
+  })
+  const res = await fetch(`https://www.googleapis.com/drive/v3/files?${p}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) throw new Error(`Drive API error: ${res.status}`)
+  return res.json()
+}
+
+// List immediate subfolders of a given folder
+async function listSubfolders(folderId: string, token: string) {
+  const json = await driveList({
+    q: `'${folderId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+    fields: 'files(id,name)',
+    pageSize: '100',
+    orderBy: 'name',
+  }, token)
+  return (json.files ?? []) as { id: string; name: string }[]
+}
+
+// List all image files in a folder (paginated)
 async function listFolderImages(folderId: string, token: string) {
   const files: { id: string; name: string }[] = []
   let pageToken: string | undefined
-
   do {
-    const params = new URLSearchParams({
+    const params: Record<string, string> = {
       q: `'${folderId}' in parents and mimeType contains 'image/' and trashed = false`,
       fields: 'nextPageToken,files(id,name)',
       pageSize: '200',
       orderBy: 'name',
-      supportsAllDrives: 'true',
-      includeItemsFromAllDrives: 'true',
-    })
-    if (pageToken) params.set('pageToken', pageToken)
-
-    const res = await fetch(
-      `https://www.googleapis.com/drive/v3/files?${params}`,
-      { headers: { Authorization: `Bearer ${token}` } }
-    )
-    if (!res.ok) throw new Error(`Drive API error: ${res.status}`)
-    const json = await res.json()
+    }
+    if (pageToken) params.pageToken = pageToken
+    const json = await driveList(params, token)
     files.push(...(json.files ?? []))
     pageToken = json.nextPageToken
   } while (pageToken && files.length < 500)
-
   return files
 }
 
@@ -63,14 +74,10 @@ export interface SyncResult {
 }
 
 /**
- * Mirrors the configured Drive folder into the Supabase fotos table:
- *  - Inserts records for new Drive files (filename as default title).
- *  - Deletes records whose Drive file no longer exists in the folder.
- *  - Deduplicates records sharing the same Drive fileId, keeping the one
- *    with more metadata (preserves user edits to titulo, descripcion, etc.).
- *  - Never overwrites metadata on existing records.
- *
- * No-op if DRIVE_PHOTOS_FOLDER_ID is not configured.
+ * Mirrors the Drive Fotos folder (and its subfolders) into Supabase:
+ *  - Reads each subfolder, assigns categoria = subfolder name.
+ *  - Inserts new files, removes deleted ones, deduplicates.
+ *  - Never overwrites user-edited metadata (titulo, descripcion, etc.).
  */
 export async function syncDriveFotos(): Promise<SyncResult> {
   if (!FOLDER_ID || !auth) return { added: 0, removed: 0, deduplicated: 0, total: 0 }
@@ -79,26 +86,34 @@ export async function syncDriveFotos(): Promise<SyncResult> {
   const { token } = await client.getAccessToken()
   if (!token) throw new Error('No se pudo obtener token de Google')
 
-  const [driveFiles, { data: existingRaw }] = await Promise.all([
-    listFolderImages(FOLDER_ID, token),
-    adminSupabase.from('fotos').select('id, imagen_url, titulo, descripcion'),
-  ])
+  // Collect all Drive files with their categoria (subfolder name)
+  const subfolders = await listSubfolders(FOLDER_ID, token)
+  const driveFiles: { id: string; name: string; categoria: string }[] = []
+
+  for (const folder of subfolders) {
+    const images = await listFolderImages(folder.id, token)
+    for (const img of images) {
+      driveFiles.push({ ...img, categoria: folder.name.trim() })
+    }
+  }
 
   const driveIds = new Set(driveFiles.map((f) => f.id))
+  const driveById = new Map(driveFiles.map((f) => [f.id, f]))
 
-  // Group existing Supabase records by Drive fileId
+  // Load existing Supabase records
   type Row = { id: string; imagen_url: string; titulo: string; descripcion: string | null }
-  const byFileId = new Map<string, Row[]>()
+  const { data: existingRaw } = await adminSupabase.from('fotos').select('id, imagen_url, titulo, descripcion')
 
+  const byFileId = new Map<string, Row[]>()
   for (const row of (existingRaw ?? []) as Row[]) {
     const fid = extractFileId(row.imagen_url)
-    if (!fid) continue // non-Drive records: leave them alone
+    if (!fid) continue
     if (!byFileId.has(fid)) byFileId.set(fid, [])
     byFileId.get(fid)!.push(row)
   }
 
-  // Deduplicate: for fileIds with >1 record, keep the richest one
-  const fileIdToKeep = new Map<string, string>() // fileId → Supabase record id to keep
+  // Deduplicate: keep the richest record per fileId
+  const fileIdToKeep = new Map<string, string>()
   const toDeleteIds: string[] = []
 
   byFileId.forEach((rows, fid) => {
@@ -106,12 +121,11 @@ export async function syncDriveFotos(): Promise<SyncResult> {
       fileIdToKeep.set(fid, rows[0].id)
       return
     }
-    // Score records — prefer ones with user-edited data over auto-synced defaults
     const scored = rows.map((r) => ({
       r,
       score:
         (r.descripcion ? 4 : 0) +
-        (r.titulo && !r.titulo.match(/^IMG[-_\d]/) ? 2 : 0) + // title looks user-edited
+        (r.titulo && !r.titulo.match(/^IMG[-_\d]/) ? 2 : 0) +
         (r.titulo ? 1 : 0),
     }))
     scored.sort((a, b) => b.score - a.score)
@@ -119,12 +133,11 @@ export async function syncDriveFotos(): Promise<SyncResult> {
     for (let i = 1; i < scored.length; i++) toDeleteIds.push(scored[i].r.id)
   })
 
-  // Delete duplicate records
   if (toDeleteIds.length > 0) {
     await adminSupabase.from('fotos').delete().in('id', toDeleteIds)
   }
 
-  // Delete records whose Drive file no longer exists in the folder
+  // Remove records whose Drive file no longer exists in any subfolder
   const toRemove: string[] = []
   fileIdToKeep.forEach((recordId, fid) => {
     if (!driveIds.has(fid)) toRemove.push(recordId)
@@ -133,12 +146,13 @@ export async function syncDriveFotos(): Promise<SyncResult> {
     await adminSupabase.from('fotos').delete().in('id', toRemove)
   }
 
-  // Insert new Drive files (those with no matching Supabase record)
+  // Insert new files
   const toInsert = driveFiles
     .filter((f) => !fileIdToKeep.has(f.id))
     .map((f) => ({
       titulo: f.name.replace(/\.[^.]+$/, ''),
       imagen_url: `https://drive.google.com/file/d/${f.id}/view`,
+      categoria: f.categoria,
       personas_ids: [] as string[],
       orden: 0,
       destacada: false,
@@ -147,6 +161,16 @@ export async function syncDriveFotos(): Promise<SyncResult> {
 
   if (toInsert.length > 0) {
     await adminSupabase.from('fotos').insert(toInsert)
+  }
+
+  // Update categoria on existing records if the file moved to a different subfolder
+  const toUpdate: { id: string; categoria: string }[] = []
+  fileIdToKeep.forEach((recordId, fid) => {
+    const driveFile = driveById.get(fid)
+    if (driveFile) toUpdate.push({ id: recordId, categoria: driveFile.categoria })
+  })
+  for (const { id, categoria } of toUpdate) {
+    await adminSupabase.from('fotos').update({ categoria }).eq('id', id)
   }
 
   return {

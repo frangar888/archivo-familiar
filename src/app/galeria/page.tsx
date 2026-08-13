@@ -1,5 +1,5 @@
 import { Suspense } from 'react'
-import { getFotos, getCartas } from '@/lib/data'
+import { getFotosGaleria } from '@/lib/data'
 import { Gallery } from '@/components/galeria'
 
 export const revalidate = 60
@@ -10,8 +10,8 @@ export const metadata = {
 }
 
 async function GalleryContent() {
-  const [fotos, cartas] = await Promise.all([getFotos(), getCartas()])
-  return <Gallery fotos={fotos} cartas={cartas} />
+  const fotos = await getFotosGaleria()
+  return <Gallery fotos={fotos} />
 }
 
 function GallerySkeleton() {
