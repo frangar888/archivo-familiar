@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Menu, X, Home, GitBranch, Clock, Image, Video, Settings, LogOut, UserCircle } from 'lucide-react'
+import { Menu, X, Home, GitBranch, Clock, Image, FileText, Video, Settings, LogOut, UserCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 
@@ -12,6 +12,7 @@ const navItems = [
   { label: 'Árbol', href: '/arbol', icon: GitBranch },
   { label: 'Línea de Tiempo', href: '/timeline', icon: Clock },
   { label: 'Galería', href: '/galeria', icon: Image },
+  { label: 'Documentos', href: '/documentos', icon: FileText },
   { label: 'Videos', href: '/videos', icon: Video },
 ]
 

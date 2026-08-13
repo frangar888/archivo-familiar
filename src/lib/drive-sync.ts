@@ -88,14 +88,18 @@ export async function syncDriveFotos(): Promise<SyncResult> {
 
   // Collect all Drive files with their categoria (subfolder name)
   const subfolders = await listSubfolders(FOLDER_ID, token)
+  console.log('[drive-sync] subfolders found:', subfolders.map((f) => `${f.name} (${f.id})`))
+
   const driveFiles: { id: string; name: string; categoria: string }[] = []
 
   for (const folder of subfolders) {
     const images = await listFolderImages(folder.id, token)
+    console.log(`[drive-sync] folder "${folder.name}": ${images.length} images`)
     for (const img of images) {
       driveFiles.push({ ...img, categoria: folder.name.trim() })
     }
   }
+  console.log('[drive-sync] total driveFiles:', driveFiles.length)
 
   const driveIds = new Set(driveFiles.map((f) => f.id))
   const driveById = new Map(driveFiles.map((f) => [f.id, f]))

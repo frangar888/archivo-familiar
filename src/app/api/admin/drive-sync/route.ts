@@ -32,6 +32,7 @@ export async function POST(req: NextRequest) {
     revalidatePath('/')
     return NextResponse.json(result)
   } catch (err: any) {
-    return NextResponse.json({ error: err.message || 'Error al sincronizar' }, { status: 500 })
+    console.error('[drive-sync route] error:', err)
+    return NextResponse.json({ error: err.message || 'Error al sincronizar', stack: err.stack }, { status: 500 })
   }
 }
